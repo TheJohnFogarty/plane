@@ -17,6 +17,7 @@ from django import apps
 
 # Module imports
 from plane.utils.html_processor import strip_tags
+from plane.utils.description_normalization import normalize_description_html, normalize_description_json
 from plane.utils.path_validator import sanitize_filename
 from plane.db.mixins import SoftDeletionManager, ChangeTrackerMixin
 from plane.utils.exception_logger import log_exception
@@ -146,6 +147,13 @@ class Issue(ChangeTrackerMixin, ProjectBaseModel):
         ordering = ("-created_at",)
 
     def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        if update_fields is None or "description_html" in update_fields:
+            self.description_html = normalize_description_html(self.description_html)
+            if update_fields is not None:
+                kwargs["update_fields"] = set(update_fields) | {"description_stripped"}
+        if update_fields is None or "description_json" in update_fields:
+            self.description_json = normalize_description_json(self.description_json)
         self._ensure_default_state()
         kwargs = self._sync_completed_at(kwargs)
 

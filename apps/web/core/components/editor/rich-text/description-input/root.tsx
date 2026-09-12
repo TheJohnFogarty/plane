@@ -130,6 +130,7 @@ export const DescriptionInput = observer(function DescriptionInput(props: Props)
   });
   // ref to track if there are unsaved changes
   const hasUnsavedChanges = useRef(false);
+  const currentEntityId = useRef(entityId);
   // ref to track last saved content (to skip onChange when content hasn't actually changed)
   const lastSavedContent = useRef(initialValue?.trim() === "" ? "<p></p>" : (initialValue ?? "<p></p>"));
   // store hooks
@@ -167,6 +168,9 @@ export const DescriptionInput = observer(function DescriptionInput(props: Props)
   // reset form values
   useEffect(() => {
     if (!entityId) return;
+    // A background refresh must not reset edits waiting for autosave.
+    if (currentEntityId.current === entityId && hasUnsavedChanges.current) return;
+    currentEntityId.current = entityId;
     const normalizedValue = initialValue?.trim() === "" ? "<p></p>" : (initialValue ?? "<p></p>");
     // Update last saved content when entity/initialValue changes
     lastSavedContent.current = normalizedValue;
