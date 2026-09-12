@@ -6,6 +6,7 @@
 from django.utils import timezone
 from django.core.validators import URLValidator
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+
 # Third Party imports
 from rest_framework import serializers
 
@@ -197,10 +198,13 @@ class IssueCreateSerializer(BaseSerializer):
         ):
             raise serializers.ValidationError("Estimate point is not valid please pass a valid estimate_point_id")
 
-        if attrs.get("type") and not ProjectIssueType.objects.filter(
-            project_id=self.context.get("project_id"),
-            issue_type_id=attrs["type"].id,
-        ).exists():
+        if (
+            attrs.get("type")
+            and not ProjectIssueType.objects.filter(
+                project_id=self.context.get("project_id"),
+                issue_type_id=attrs["type"].id,
+            ).exists()
+        ):
             raise serializers.ValidationError("Type is not valid for this project")
 
         return attrs
@@ -844,6 +848,17 @@ class IssueSerializer(DynamicBaseSerializer):
         ]
         read_only_fields = fields
 
+    def to_representation(self, instance):
+        response = super().to_representation(instance)
+        if "issue_attachments" in self.expand:
+            attachments = getattr(instance, "detail_attachments", None)
+            if attachments is None:
+                attachments = FileAsset.objects.filter(
+                    issue_id=instance.id, entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT
+                )
+            response["issue_attachments"] = IssueAttachmentLiteSerializer(attachments, many=True).data
+        return response
+
     def get_is_epic(self, obj):
         if not obj.type_id:
             return False
@@ -935,7 +950,7 @@ class IssueListDetailSerializer(serializers.Serializer):
 class IssueLiteSerializer(DynamicBaseSerializer):
     class Meta:
         model = Issue
-        fields = ["id", "sequence_id", "project_id"]
+        fields = ["id", "name", "sequence_id", "project_id", "type_id"]
         read_only_fields = fields
 
 

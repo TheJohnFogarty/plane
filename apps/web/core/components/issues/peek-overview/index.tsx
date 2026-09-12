@@ -5,6 +5,7 @@
  */
 
 import { lazy, Suspense } from "react";
+import useSWR from "swr";
 import { observer } from "mobx-react";
 import type { IWorkItemPeekOverview } from "@plane/types";
 import { EIssueServiceType } from "@plane/types";
@@ -23,8 +24,17 @@ function PeekSuspenseFallback() {
 
 export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWorkItemPeekOverview) {
   const { embedIssue = false } = props;
-  const { peekIssue } = useIssueDetail();
+  const {
+    peekIssue,
+    issue: { fetchIssue, hasIssueDetails },
+  } = useIssueDetail();
   const { peekIssue: epicPeekIssue } = useIssueDetail(EIssueServiceType.EPICS);
+
+  const { isLoading, error } = useSWR(
+    peekIssue ? ["peek-issue", peekIssue.workspaceSlug, peekIssue.projectId, peekIssue.issueId] : null,
+    () => peekIssue && fetchIssue(peekIssue.workspaceSlug, peekIssue.projectId, peekIssue.issueId),
+    { revalidateOnMount: true, revalidateOnFocus: false, revalidateOnReconnect: false }
+  );
 
   if (!embedIssue && !peekIssue?.issueId && !epicPeekIssue?.issueId) return null;
 
@@ -32,7 +42,11 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
     <Suspense
       fallback={embedIssue ? <IssuePeekOverviewLoader removeRoutePeekId={() => undefined} /> : <PeekSuspenseFallback />}
     >
-      <IssuePeekOverviewContent {...props} />
+      <IssuePeekOverviewContent
+        {...props}
+        isLoading={isLoading}
+        isError={Boolean(error) && !hasIssueDetails(peekIssue?.issueId)}
+      />
     </Suspense>
   );
 });

@@ -7,7 +7,7 @@ import json
 
 # Django imports
 from django.utils import timezone
-from django.db.models import Q, OuterRef, F, Func, UUIDField, Value, CharField, Subquery
+from django.db.models import Q, UUIDField, Value
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models.functions import Coalesce
 from django.contrib.postgres.aggregates import ArrayAgg
@@ -25,12 +25,9 @@ from plane.db.models import (
     Project,
     IssueRelation,
     Issue,
-    FileAsset,
-    IssueLink,
-    CycleIssue,
 )
 from plane.bgtasks.issue_activities_task import issue_activity
-from plane.utils.issue_relation_mapper import get_actual_relation
+from plane.utils.issue_relation_mapper import get_actual_relation, get_inverse_relation
 from plane.utils.host import base_host
 
 
@@ -40,101 +37,43 @@ class IssueRelationViewSet(BaseViewSet):
     permission_classes = [ProjectEntityPermission]
 
     def list(self, request, slug, project_id, issue_id):
-        issue_relations = (
-            IssueRelation.objects.filter(Q(issue_id=issue_id) | Q(related_issue=issue_id))
-            .filter(workspace__slug=self.kwargs.get("slug"))
-            .select_related("project")
-            .select_related("workspace")
-            .select_related("issue")
-            .order_by("-created_at")
-            .distinct()
-        )
-        # get all blocking issues
-        blocking_issues = issue_relations.filter(relation_type="blocked_by", related_issue_id=issue_id).values_list(
-            "issue_id", flat=True
-        )
-
-        # get all blocked by issues
-        blocked_by_issues = issue_relations.filter(relation_type="blocked_by", issue_id=issue_id).values_list(
-            "related_issue_id", flat=True
-        )
-
-        # get all duplicate issues
-        duplicate_issues = issue_relations.filter(issue_id=issue_id, relation_type="duplicate").values_list(
-            "related_issue_id", flat=True
-        )
-
-        # get all relates to issues
-        duplicate_issues_related = issue_relations.filter(
-            related_issue_id=issue_id, relation_type="duplicate"
-        ).values_list("issue_id", flat=True)
-
-        # get all relates to issues
-        relates_to_issues = issue_relations.filter(issue_id=issue_id, relation_type="relates_to").values_list(
-            "related_issue_id", flat=True
-        )
-
-        # get all relates to issues
-        relates_to_issues_related = issue_relations.filter(
-            related_issue_id=issue_id, relation_type="relates_to"
-        ).values_list("issue_id", flat=True)
-
-        # get all start after issues
-        start_after_issues = issue_relations.filter(
-            relation_type="start_before", related_issue_id=issue_id
-        ).values_list("issue_id", flat=True)
-
-        # get all start_before issues
-        start_before_issues = issue_relations.filter(relation_type="start_before", issue_id=issue_id).values_list(
-            "related_issue_id", flat=True
-        )
-
-        # get all finish after issues
-        finish_after_issues = issue_relations.filter(
-            relation_type="finish_before", related_issue_id=issue_id
-        ).values_list("issue_id", flat=True)
-
-        # get all finish before issues
-        finish_before_issues = issue_relations.filter(relation_type="finish_before", issue_id=issue_id).values_list(
-            "related_issue_id", flat=True
-        )
-
-        queryset = (
-            Issue.issue_objects.filter(workspace__slug=slug)
-            .select_related("workspace", "project", "state", "parent")
-            .prefetch_related("assignees", "labels", "issue_module__module")
-            .annotate(
-                cycle_id=Subquery(
-                    CycleIssue.objects.filter(issue=OuterRef("id"), deleted_at__isnull=True).values("cycle_id")[:1]
-                )
+        groups = {
+            key: []
+            for key in (
+                "blocking",
+                "blocked_by",
+                "duplicate",
+                "relates_to",
+                "start_after",
+                "start_before",
+                "finish_after",
+                "finish_before",
             )
-            .annotate(
-                link_count=IssueLink.objects.filter(issue=OuterRef("id"))
-                .order_by()
-                .annotate(count=Func(F("id"), function="Count"))
-                .values("count")
-            )
-            .annotate(
-                attachment_count=FileAsset.objects.filter(
-                    issue_id=OuterRef("id"),
-                    entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
-                )
-                .order_by()
-                .annotate(count=Func(F("id"), function="Count"))
-                .values("count")
-            )
-            .annotate(
-                sub_issues_count=Issue.issue_objects.filter(parent=OuterRef("id"))
-                .order_by()
-                .annotate(count=Func(F("id"), function="Count"))
-                .values("count")
-            )
+        }
+        edges = list(
+            IssueRelation.objects.filter(Q(issue_id=issue_id) | Q(related_issue_id=issue_id))
+            .filter(workspace__slug=slug)
+            .values_list("issue_id", "related_issue_id", "relation_type")
+        )
+        if not edges:
+            return Response(groups, status=status.HTTP_200_OK)
+
+        counterparts = {key: set() for key in groups}
+        for source, target, relation in edges:
+            outgoing = str(source) == str(issue_id)
+            group = relation if outgoing else get_inverse_relation(relation)
+            if group in counterparts:
+                counterparts[group].add(target if outgoing else source)
+
+        related_ids = set().union(*counterparts.values())
+        issues = (
+            Issue.issue_objects.filter(workspace__slug=slug, pk__in=related_ids)
             .annotate(
                 label_ids=Coalesce(
                     ArrayAgg(
                         "labels__id",
                         distinct=True,
-                        filter=Q(~Q(labels__id__isnull=True) & (Q(label_issue__deleted_at__isnull=True))),
+                        filter=Q(labels__id__isnull=False, label_issue__deleted_at__isnull=True),
                     ),
                     Value([], output_field=ArrayField(UUIDField())),
                 ),
@@ -143,68 +82,36 @@ class IssueRelationViewSet(BaseViewSet):
                         "assignees__id",
                         distinct=True,
                         filter=Q(
-                            ~Q(assignees__id__isnull=True)
-                            & Q(assignees__member_project__is_active=True)
-                            & Q(issue_assignee__deleted_at__isnull=True)
+                            assignees__id__isnull=False,
+                            assignees__member_project__is_active=True,
+                            issue_assignee__deleted_at__isnull=True,
                         ),
                     ),
                     Value([], output_field=ArrayField(UUIDField())),
                 ),
             )
-        ).distinct()
-
-        # Fields
-        fields = [
-            "id",
-            "name",
-            "state_id",
-            "sort_order",
-            "priority",
-            "sequence_id",
-            "project_id",
-            "label_ids",
-            "assignee_ids",
-            "created_at",
-            "updated_at",
-            "created_by",
-            "updated_by",
-            "relation_type",
-        ]
-
-        response_data = {
-            "blocking": queryset.filter(pk__in=blocking_issues)
-            .annotate(relation_type=Value("blocking", output_field=CharField()))
-            .values(*fields),
-            "blocked_by": queryset.filter(pk__in=blocked_by_issues)
-            .annotate(relation_type=Value("blocked_by", output_field=CharField()))
-            .values(*fields),
-            "duplicate": queryset.filter(pk__in=duplicate_issues)
-            .annotate(relation_type=Value("duplicate", output_field=CharField()))
-            .values(*fields)
-            | queryset.filter(pk__in=duplicate_issues_related)
-            .annotate(relation_type=Value("duplicate", output_field=CharField()))
-            .values(*fields),
-            "relates_to": queryset.filter(pk__in=relates_to_issues)
-            .annotate(relation_type=Value("relates_to", output_field=CharField()))
-            .values(*fields)
-            | queryset.filter(pk__in=relates_to_issues_related)
-            .annotate(relation_type=Value("relates_to", output_field=CharField()))
-            .values(*fields),
-            "start_after": queryset.filter(pk__in=start_after_issues)
-            .annotate(relation_type=Value("start_after", output_field=CharField()))
-            .values(*fields),
-            "start_before": queryset.filter(pk__in=start_before_issues)
-            .annotate(relation_type=Value("start_before", output_field=CharField()))
-            .values(*fields),
-            "finish_after": queryset.filter(pk__in=finish_after_issues)
-            .annotate(relation_type=Value("finish_after", output_field=CharField()))
-            .values(*fields),
-            "finish_before": queryset.filter(pk__in=finish_before_issues)
-            .annotate(relation_type=Value("finish_before", output_field=CharField()))
-            .values(*fields),
-        }
-
-        return Response(response_data, status=status.HTTP_200_OK)
+            .order_by("-created_at", "id")
+            .values(
+                "id",
+                "name",
+                "state_id",
+                "sort_order",
+                "priority",
+                "sequence_id",
+                "project_id",
+                "label_ids",
+                "assignee_ids",
+                "created_at",
+                "updated_at",
+                "created_by",
+                "updated_by",
+            )
+        )
+        for issue in issues:
+            for group, ids in counterparts.items():
+                if issue["id"] in ids:
+                    groups[group].append({**issue, "relation_type": group})
+        return Response(groups, status=status.HTTP_200_OK)
 
     def create(self, request, slug, project_id, issue_id):
         relation_type = request.data.get("relation_type", None)

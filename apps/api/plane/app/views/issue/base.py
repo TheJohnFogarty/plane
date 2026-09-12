@@ -34,8 +34,6 @@ from plane.db.models import (
     CycleIssue,
     IntakeIssue,
     Issue,
-    IssueLink,
-    IssueReaction,
     IssueRelation,
     IssueSubscriber,
     ProjectUserProperty,
@@ -48,6 +46,7 @@ from plane.utils.filters import IssueComplexFilterBackend, IssueFilterSet
 from plane.utils.global_paginator import paginate
 from plane.utils.host import base_host
 from plane.utils.grouper import issue_on_results
+from plane.utils.issue_detail import prepare_issue_detail_queryset
 from plane.utils.issue_query import (
     ISSUE_BOARD_FIELDS,
     INTAKE_BOARD_COUNT_FILTER,
@@ -209,24 +208,9 @@ class IssueViewSet(BaseViewSet):
         project = Project.objects.get(pk=project_id, workspace__slug=slug)
 
         issue = (
-            annotate_issue_detail_qs(
-                Issue.objects.filter(
-                    project_id=self.kwargs.get("project_id"),
-                    workspace__slug=self.kwargs.get("slug"),
-                    pk=pk,
-                ).select_related("state", "type")
-            )
-            .prefetch_related(
-                Prefetch(
-                    "issue_reactions",
-                    queryset=IssueReaction.objects.select_related("issue", "actor"),
-                )
-            )
-            .prefetch_related(
-                Prefetch(
-                    "issue_link",
-                    queryset=IssueLink.objects.select_related("created_by"),
-                )
+            prepare_issue_detail_queryset(
+                Issue.objects.filter(project_id=project_id, workspace__slug=slug, pk=pk),
+                self.expand,
             )
             .annotate(
                 is_subscribed=Exists(
@@ -251,9 +235,10 @@ class IssueViewSet(BaseViewSet):
         the requesting user then dont show the issue
         """
 
-        if is_restricted_guest(
-            slug=slug, project_id=project_id, user=request.user, project=project
-        ) and issue.created_by != request.user:
+        if (
+            is_restricted_guest(slug=slug, project_id=project_id, user=request.user, project=project)
+            and issue.created_by != request.user
+        ):
             return Response(
                 {"error": "You are not allowed to view this issue"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -477,9 +462,7 @@ class IssuePaginatedViewSet(BaseViewSet):
         base_queryset = restrict_guest_issues(
             base_queryset, slug=slug, project_id=project_id, user=request.user, project=project
         )
-        queryset = restrict_guest_issues(
-            queryset, slug=slug, project_id=project_id, user=request.user, project=project
-        )
+        queryset = restrict_guest_issues(queryset, slug=slug, project_id=project_id, user=request.user, project=project)
 
         # filtering issues by greater then updated_at given by the user
         if updated_at:
@@ -671,24 +654,9 @@ class IssueDetailIdentifierEndpoint(BaseAPIView):
 
         # Fetch the issue
         issue = (
-            annotate_issue_detail_qs(
-                Issue.objects.filter(project_id=project.id)
-                .filter(workspace__slug=slug)
-                .select_related("workspace", "project", "state", "parent")
-                .prefetch_related("assignees", "labels", "issue_module__module")
-            )
-            .filter(sequence_id=issue_identifier)
-            .prefetch_related(
-                Prefetch(
-                    "issue_reactions",
-                    queryset=IssueReaction.objects.select_related("issue", "actor"),
-                )
-            )
-            .prefetch_related(
-                Prefetch(
-                    "issue_link",
-                    queryset=IssueLink.objects.select_related("created_by"),
-                )
+            prepare_issue_detail_queryset(
+                Issue.objects.filter(project_id=project.id, workspace__slug=slug, sequence_id=issue_identifier),
+                self.expand,
             )
             .annotate(
                 is_subscribed=Exists(
@@ -725,9 +693,10 @@ class IssueDetailIdentifierEndpoint(BaseAPIView):
         the requesting user then dont show the issue
         """
 
-        if is_restricted_guest(
-            slug=slug, project_id=project.id, user=request.user, project=project
-        ) and issue.created_by != request.user:
+        if (
+            is_restricted_guest(slug=slug, project_id=project.id, user=request.user, project=project)
+            and issue.created_by != request.user
+        ):
             return Response(
                 {"error": "You are not allowed to view this issue"},
                 status=status.HTTP_403_FORBIDDEN,

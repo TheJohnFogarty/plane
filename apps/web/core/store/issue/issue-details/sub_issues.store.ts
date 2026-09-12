@@ -77,6 +77,7 @@ export class IssueSubIssuesStore implements IIssueSubIssuesStore {
   // services
   serviceType;
   issueService;
+  private fetchPromises = new Map<string, Promise<TIssueSubIssues>>();
 
   constructor(rootStore: IIssueDetail, serviceType: TIssueServiceType) {
     makeObservable(this, {
@@ -127,6 +128,18 @@ export class IssueSubIssuesStore implements IIssueSubIssuesStore {
   };
 
   fetchSubIssues = async (workspaceSlug: string, projectId: string, parentIssueId: string) => {
+    const cacheKey = `${workspaceSlug}:${projectId}:${parentIssueId}`;
+    const inFlightRequest = this.fetchPromises.get(cacheKey);
+    if (inFlightRequest) return inFlightRequest;
+
+    const request = this.loadSubIssues(workspaceSlug, projectId, parentIssueId).finally(() => {
+      this.fetchPromises.delete(cacheKey);
+    });
+    this.fetchPromises.set(cacheKey, request);
+    return request;
+  };
+
+  private loadSubIssues = async (workspaceSlug: string, projectId: string, parentIssueId: string) => {
     this.loader = "init-loader";
     const response = await this.issueService.subIssues(workspaceSlug, projectId, parentIssueId);
 

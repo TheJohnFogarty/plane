@@ -42,7 +42,7 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
   const { t } = useTranslation();
   const {
     fetchIssueWithIdentifier,
-    issue: { getIssueById },
+    issue: { getIssueById, getIssueIdByIdentifier, hasIssueDetails },
   } = useIssueDetail();
   const { getProjectById, getProjectByIdentifier } = useProject();
   const { toggleIssueDetailSidebar, issueDetailSidebarCollapsed } = useAppTheme();
@@ -52,16 +52,21 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
   // fetching issue details
   const { data, isLoading, error } = useSWR<TIssue, Error>(
     `ISSUE_DETAIL_${workspaceSlug}_${projectIdentifier}_${sequence_id}`,
-    () => fetchIssueWithIdentifier(workspaceSlug.toString(), projectIdentifier, sequence_id)
+    () => fetchIssueWithIdentifier(workspaceSlug.toString(), projectIdentifier, sequence_id),
+    {
+      revalidateOnMount: true,
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+    }
   );
 
   // derived values
   const projectDetails = getProjectByIdentifier(projectIdentifier);
-  const issueId = data?.id;
-  const projectId = data?.project_id ?? projectDetails?.id ?? "";
+  const issueId = data?.id ?? getIssueIdByIdentifier(`${projectIdentifier}-${sequence_id}`, workspaceSlug);
+  const projectId = data?.project_id ?? getIssueById(issueId ?? "")?.project_id ?? projectDetails?.id ?? "";
   const issue = getIssueById(issueId?.toString() || "") || undefined;
   const project = (issue?.project_id && getProjectById(issue?.project_id)) || undefined;
-  const issueLoader = !issue || isLoading;
+  const issueLoader = !issue || !hasIssueDetails(issueId);
   const pageTitle = project && issue ? `${project?.identifier}-${issue?.sequence_id} ${issue?.name}` : undefined;
 
   useWorkItemProperties(
@@ -91,7 +96,7 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
     }
   }, [workspaceSlug, data, router]);
 
-  if (error && !isLoading) {
+  if (error && !isLoading && issueLoader) {
     return (
       <EmptyState
         image={resolvedTheme === "dark" ? emptyIssueDark : emptyIssueLight}
@@ -105,38 +110,42 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
     );
   }
 
-  if (issueLoader) {
-    return (
-      <Loader className="flex h-full gap-5 p-5">
-        <div className="basis-2/3 space-y-2">
-          <Loader.Item height="30px" width="40%" />
-          <Loader.Item height="15px" width="60%" />
-          <Loader.Item height="15px" width="60%" />
-          <Loader.Item height="15px" width="40%" />
-        </div>
-        <div className="basis-1/3 space-y-3">
-          <Loader.Item height="30px" />
-          <Loader.Item height="30px" />
-          <Loader.Item height="30px" />
-          <Loader.Item height="30px" />
-        </div>
-      </Loader>
-    );
+  const detailLoader = (
+    <Loader className="flex h-full gap-5 p-5">
+      <div className="basis-2/3 space-y-2">
+        <Loader.Item height="30px" width="40%" />
+        <Loader.Item height="15px" width="60%" />
+        <Loader.Item height="15px" width="60%" />
+        <Loader.Item height="15px" width="40%" />
+      </div>
+      <div className="basis-1/3 space-y-3">
+        <Loader.Item height="30px" />
+        <Loader.Item height="30px" />
+        <Loader.Item height="30px" />
+        <Loader.Item height="30px" />
+      </div>
+    </Loader>
+  );
+
+  if (!projectId) {
+    return issueLoader ? detailLoader : null;
   }
 
   return (
     <>
       <PageHead title={pageTitle} />
-      {workspaceSlug && projectId && issueId && (
-        <ProjectAuthWrapper workspaceSlug={workspaceSlug} projectId={projectId}>
+      <ProjectAuthWrapper workspaceSlug={workspaceSlug} projectId={projectId}>
+        {issueLoader || !issueId || !issue ? (
+          detailLoader
+        ) : (
           <WorkItemDetailRoot
             workspaceSlug={workspaceSlug.toString()}
             projectId={projectId.toString()}
             issueId={issueId.toString()}
             issue={issue}
           />
-        </ProjectAuthWrapper>
-      )}
+        )}
+      </ProjectAuthWrapper>
     </>
   );
 });

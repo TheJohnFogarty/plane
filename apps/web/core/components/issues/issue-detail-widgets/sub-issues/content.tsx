@@ -62,7 +62,7 @@ export const SubIssuesCollapsibleContent = observer(function SubIssuesCollapsibl
     fetchSubIssues,
     toggleCreateIssueModal,
     toggleDeleteIssueModal,
-    subIssues: { subIssueHelpersByIssueId, setSubIssueHelpers },
+    subIssues: { subIssueHelpersByIssueId, setSubIssueHelpers, subIssuesByIssueId },
   } = useIssueDetail(issueServiceType);
 
   // helpers
@@ -88,6 +88,11 @@ export const SubIssuesCollapsibleContent = observer(function SubIssuesCollapsibl
     const helperKey = `${parentIssueId}_root`;
     if (subIssueHelpersByIssueId(helperKey).issue_visibility.includes(parentIssueId)) return;
 
+    if (subIssuesByIssueId(parentIssueId)) {
+      setSubIssueHelpers(helperKey, "issue_visibility", parentIssueId, true);
+      return;
+    }
+
     let cancelled = false;
     const load = async () => {
       try {
@@ -105,7 +110,15 @@ export const SubIssuesCollapsibleContent = observer(function SubIssuesCollapsibl
     return () => {
       cancelled = true;
     };
-  }, [fetchSubIssues, parentIssueId, projectId, setSubIssueHelpers, subIssueHelpersByIssueId, workspaceSlug]);
+  }, [
+    fetchSubIssues,
+    parentIssueId,
+    projectId,
+    setSubIssueHelpers,
+    subIssueHelpersByIssueId,
+    subIssuesByIssueId,
+    workspaceSlug,
+  ]);
 
   // render conditions
   const shouldRenderDeleteIssueModal =

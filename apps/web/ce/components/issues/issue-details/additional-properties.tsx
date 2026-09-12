@@ -66,14 +66,21 @@ export const WorkItemAdditionalSidebarProperties = observer(function WorkItemAdd
 
   useEffect(() => {
     if (!workspaceSlug || !projectId || !workItemId) return;
+    if (workItemId in issueTypeStore.propertyValuesMap) return;
     void issueTypeStore.fetchPropertyValues(workspaceSlug, projectId, workItemId).then((values) => {
       setLocalValues(values || {});
       return undefined;
     });
   }, [workspaceSlug, projectId, workItemId, issueTypeStore]);
 
+  const storedValues = issueTypeStore.propertyValuesMap[workItemId];
+  const hasStoredValues = workItemId in issueTypeStore.propertyValuesMap;
   const defaultTypeId = issueTypeStore.getDefaultIssueTypeId(projectId);
   const effectiveTypeId = workItemTypeId || defaultTypeId;
+
+  useEffect(() => {
+    if (hasStoredValues) setLocalValues(storedValues || {});
+  }, [hasStoredValues, storedValues]);
 
   // Legacy issues may lack type_id after types were enabled — assign the default once
   useEffect(() => {

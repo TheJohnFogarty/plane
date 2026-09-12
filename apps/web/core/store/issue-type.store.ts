@@ -92,6 +92,7 @@ export class IssueTypeStore implements IIssueTypeStore {
   projectTypeIds: Record<string, string[]> = {};
   service;
   private fetchPromises = new Map<string, Promise<TIssueType[]>>();
+  private propertyValueFetchPromises = new Map<string, Promise<TIssuePropertyValuesMap>>();
 
   constructor(_rootStore: CoreRootStore) {
     makeObservable(this, {
@@ -290,11 +291,29 @@ export class IssueTypeStore implements IIssueTypeStore {
   }
 
   async fetchPropertyValues(workspaceSlug: string, projectId: string, issueId: string) {
-    const values = await this.service.getPropertyValues(workspaceSlug, projectId, issueId);
-    runInAction(() => {
-      this.propertyValuesMap[issueId] = values || {};
-    });
-    return values || {};
+    if (issueId in this.propertyValuesMap) {
+      return this.propertyValuesMap[issueId];
+    }
+
+    const requestKey = `${workspaceSlug}:${projectId}:${issueId}`;
+    const inFlightRequest = this.propertyValueFetchPromises.get(requestKey);
+    if (inFlightRequest) return inFlightRequest;
+
+    const request = this.service
+      .getPropertyValues(workspaceSlug, projectId, issueId)
+      .then((values) => {
+        const nextValues = values || {};
+        runInAction(() => {
+          this.propertyValuesMap[issueId] = nextValues;
+        });
+        return nextValues;
+      })
+      .finally(() => {
+        this.propertyValueFetchPromises.delete(requestKey);
+      });
+
+    this.propertyValueFetchPromises.set(requestKey, request);
+    return request;
   }
 
   async fetchPropertyValuesBulk(workspaceSlug: string, projectId: string, issueIds: string[]) {

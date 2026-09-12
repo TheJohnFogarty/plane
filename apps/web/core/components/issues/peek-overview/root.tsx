@@ -4,9 +4,8 @@
  * See the LICENSE file for details.
  */
 
-import { useState, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { observer } from "mobx-react";
-import useSWR from "swr";
 import { EUserPermissions, EUserPermissionsLevel } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import type { IWorkItemPeekOverview } from "@plane/types";
@@ -19,7 +18,9 @@ import { useWorkItemProperties } from "@/hooks/use-issue-properties";
 import { createIssueOperations } from "../issue-operations";
 import { IssueView } from "./view";
 
-export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWorkItemPeekOverview) {
+export const IssuePeekOverview = observer(function IssuePeekOverview(
+  props: IWorkItemPeekOverview & { isLoading?: boolean; isError?: boolean }
+) {
   const { embedIssue = false, embedRemoveCurrentNotification, storeType: issueStoreFromProps } = props;
   const { t } = useTranslation();
   const { allowPermissions } = useUserPermissions();
@@ -43,8 +44,6 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
     peekIssue?.issueId,
     storeType === EIssuesStoreType.EPIC ? EIssueServiceType.EPICS : EIssueServiceType.ISSUES
   );
-  // state
-  const [error, setError] = useState(false);
 
   const removeRoutePeekId = useCallback(() => {
     setPeekIssue(undefined);
@@ -56,7 +55,6 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
       createIssueOperations({
         t,
         fetchIssue: async (workspaceSlug, projectId, issueId) => {
-          setError(false);
           await fetchIssue(workspaceSlug, projectId, issueId);
         },
         updateIssue: async (workspaceSlug, projectId, issueId, data) => {
@@ -91,23 +89,12 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
           ? (workspaceSlug, projectId, issueId, addModuleIds, removeModuleIds) =>
               issues.changeModulesInIssue(workspaceSlug, projectId, issueId, addModuleIds, removeModuleIds)
           : undefined,
-        onFetchError: () => setError(true),
         onRemoveSuccess: removeRoutePeekId,
         afterMutation: (workspaceSlug, projectId, issueId) => {
           fetchActivities(workspaceSlug, projectId, issueId);
         },
       }),
     [fetchActivities, fetchIssue, issues, removeRoutePeekId, restoreIssue, t]
-  );
-
-  const { isLoading } = useSWR(
-    ["peek-issue", peekIssue?.workspaceSlug, peekIssue?.projectId, peekIssue?.issueId],
-    () => peekIssue && issueOperations.fetch(peekIssue.workspaceSlug, peekIssue.projectId, peekIssue.issueId),
-    {
-      revalidateIfStale: false,
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    }
   );
 
   if (!peekIssue?.workspaceSlug || !peekIssue?.projectId || !peekIssue?.issueId) return <></>;
@@ -125,8 +112,8 @@ export const IssuePeekOverview = observer(function IssuePeekOverview(props: IWor
       workspaceSlug={peekIssue.workspaceSlug}
       projectId={peekIssue.projectId}
       issueId={peekIssue.issueId}
-      isLoading={isLoading}
-      isError={error}
+      isLoading={props.isLoading}
+      isError={props.isError}
       is_archived={!!peekIssue.isArchived}
       disabled={!isEditable}
       embedIssue={embedIssue}

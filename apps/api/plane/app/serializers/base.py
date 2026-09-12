@@ -53,7 +53,7 @@ class DynamicBaseSerializer(BaseSerializer):
                 allowed.append(list(item.keys())[0])
 
         for field in allowed:
-            if field not in self.fields:
+            if isinstance(field, str):
                 from . import (
                     WorkspaceLiteSerializer,
                     ProjectLiteSerializer,
@@ -95,7 +95,7 @@ class DynamicBaseSerializer(BaseSerializer):
                     "sub_issues": IssueLiteSerializer,
                 }
 
-            if field not in self.fields and field in expansion:
+            if field in expansion:
                 self.fields[field] = expansion[field](
                     many=(
                         True
@@ -118,84 +118,3 @@ class DynamicBaseSerializer(BaseSerializer):
                 )
 
         return self.fields
-
-    def to_representation(self, instance):
-        response = super().to_representation(instance)
-
-        # Ensure 'expand' is iterable before processing
-        if self.expand:
-            for expand in self.expand:
-                if expand in self.fields:
-                    # Import all the expandable serializers
-                    from . import (
-                        WorkspaceLiteSerializer,
-                        ProjectLiteSerializer,
-                        UserLiteSerializer,
-                        StateLiteSerializer,
-                        IssueSerializer,
-                        LabelSerializer,
-                        CycleIssueSerializer,
-                        IssueRelationSerializer,
-                        IntakeIssueLiteSerializer,
-                        IssueLiteSerializer,
-                        IssueReactionLiteSerializer,
-                        IssueAttachmentLiteSerializer,
-                        IssueLinkLiteSerializer,
-                        RelatedIssueSerializer,
-                    )
-
-                    # Expansion mapper
-                    expansion = {
-                        "user": UserLiteSerializer,
-                        "workspace": WorkspaceLiteSerializer,
-                        "project": ProjectLiteSerializer,
-                        "default_assignee": UserLiteSerializer,
-                        "project_lead": UserLiteSerializer,
-                        "state": StateLiteSerializer,
-                        "created_by": UserLiteSerializer,
-                        "issue": IssueSerializer,
-                        "actor": UserLiteSerializer,
-                        "owned_by": UserLiteSerializer,
-                        "members": UserLiteSerializer,
-                        "assignees": UserLiteSerializer,
-                        "labels": LabelSerializer,
-                        "issue_cycle": CycleIssueSerializer,
-                        "parent": IssueLiteSerializer,
-                        "issue_relation": IssueRelationSerializer,
-                        "issue_intake": IntakeIssueLiteSerializer,
-                        "issue_related": RelatedIssueSerializer,
-                        "issue_reactions": IssueReactionLiteSerializer,
-                        "issue_attachment": IssueAttachmentLiteSerializer,
-                        "issue_link": IssueLinkLiteSerializer,
-                        "sub_issues": IssueLiteSerializer,
-                    }
-                    # Check if field in expansion then expand the field
-                    if expand in expansion:
-                        if isinstance(response.get(expand), list):
-                            exp_serializer = expansion[expand](getattr(instance, expand), many=True)
-                        else:
-                            exp_serializer = expansion[expand](getattr(instance, expand))
-                        response[expand] = exp_serializer.data
-                    else:
-                        # You might need to handle this case differently
-                        response[expand] = getattr(instance, f"{expand}_id", None)
-
-            # Check if issue_attachments is in fields or expand
-            if "issue_attachments" in self.fields or "issue_attachments" in self.expand:
-                # Import the model here to avoid circular imports
-                from plane.db.models import FileAsset
-
-                issue_id = getattr(instance, "id", None)
-
-                if issue_id:
-                    # Fetch related issue_attachments
-                    issue_attachments = FileAsset.objects.filter(
-                        issue_id=issue_id,
-                        entity_type=FileAsset.EntityTypeContext.ISSUE_ATTACHMENT,
-                    )
-                    # Serialize issue_attachments and add them to the response
-                    response["issue_attachments"] = IssueAttachmentLiteSerializer(issue_attachments, many=True).data
-                else:
-                    response["issue_attachments"] = []
-
-        return response

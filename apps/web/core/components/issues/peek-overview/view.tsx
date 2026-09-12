@@ -45,7 +45,6 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
     workspaceSlug,
     projectId,
     issueId,
-    isLoading,
     isError,
     is_archived,
     disabled = false,
@@ -67,10 +66,12 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
   const {
     setPeekIssue,
     isAnyModalOpen,
-    issue: { getIssueById },
+    issue: { getIssueById, hasIssueDetails },
   } = useIssueDetail();
   const { isAnyModalOpen: isAnyEpicModalOpen } = useIssueDetail(EIssueServiceType.EPICS);
   const issue = getIssueById(issueId);
+  const showPeekContent = !isError && Boolean(issue) && hasIssueDetails(issueId);
+  const showPeekLoader = !isError && !showPeekContent;
   // remove peek id
   const removeRoutePeekId = () => {
     setPeekIssue(undefined);
@@ -149,9 +150,9 @@ export const IssueView = observer(function IssueView(props: IIssueView) {
               <IssuePeekOverviewError removeRoutePeekId={removeRoutePeekId} />
             </div>
           ) : (
-            isLoading && !issue && <IssuePeekOverviewLoader removeRoutePeekId={removeRoutePeekId} />
+            showPeekLoader && <IssuePeekOverviewLoader removeRoutePeekId={removeRoutePeekId} />
           )}
-          {!isError && issue && (
+          {showPeekContent && (
             <>
               {/* header */}
               <IssuePeekOverviewHeader
