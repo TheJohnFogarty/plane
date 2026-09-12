@@ -260,4 +260,161 @@ describe("project user-properties bootstrap", () => {
     expect(issueFilter.filters["project-a"].displayProperties).toBe(hydratedDisplayProperties);
     expect(issueFilter.getIssueFilters("project-a")?.displayFilters?.group_by).toBeNull();
   });
+
+  it("does not hydrate default filters when user properties are not cached", async () => {
+    const memberStore = createMemberStore();
+    const properties = createUserProperties({ "property-a": true });
+    vi.spyOn(memberStore.projectService, "getProjectUserProperties").mockResolvedValue(properties);
+    const rootIssueStore = {
+      currentUserId: undefined,
+      rootStore: {
+        memberRoot: {
+          project: memberStore,
+        },
+      },
+    };
+    const issueFilter = new ProjectIssuesFilter(rootIssueStore as never);
+
+    issueFilter.hydrateFilters("workspace", "project-a");
+    expect(issueFilter.getIssueFilters("project-a")).toBeUndefined();
+
+    await issueFilter.fetchFilters("workspace", "project-a");
+    expect(issueFilter.getIssueFilters("project-a")?.displayProperties?.custom_properties).toEqual({
+      "property-a": true,
+    });
+  });
+
+  it("refetches issues when remote filters change query-affecting params", async () => {
+    const memberStore = createMemberStore();
+    const remote = createUserProperties();
+    remote.display_filters = { layout: EIssueLayoutTypes.LIST, order_by: "-created_at" };
+    vi.spyOn(memberStore.projectService, "getProjectUserProperties").mockResolvedValue(remote);
+    const fetchIssuesWithExistingPagination = vi.fn();
+    const rootIssueStore = {
+      currentUserId: undefined,
+      projectIssues: { fetchIssuesWithExistingPagination },
+      rootStore: {
+        memberRoot: {
+          project: memberStore,
+        },
+      },
+    };
+    const issueFilter = new ProjectIssuesFilter(rootIssueStore as never);
+    issueFilter.filters["project-a"] = {
+      richFilters: {},
+      displayFilters: { layout: EIssueLayoutTypes.LIST, order_by: "sort_order" },
+      displayProperties: { assignee: true },
+      kanbanFilters: { group_by: [], sub_group_by: [] },
+    };
+
+    await issueFilter.fetchFilters("workspace", "project-a");
+
+    expect(issueFilter.getIssueFilters("project-a")?.displayFilters?.order_by).toBe("-created_at");
+    expect(fetchIssuesWithExistingPagination).toHaveBeenCalledWith("workspace", "project-a", "mutation");
+  });
+
+  it("drops a stale user-properties response after a newer update starts", async () => {
+    const store = createMemberStore();
+    const firstUpdate = createDeferred<IProjectUserPropertiesResponse>();
+    const secondUpdate = createDeferred<IProjectUserPropertiesResponse>();
+    const updateProperties = vi
+      .spyOn(store.projectService, "updateProjectUserProperties")
+      .mockReturnValueOnce(firstUpdate.promise)
+      .mockReturnValueOnce(secondUpdate.promise);
+
+    const first = store.updateProjectUserProperties("workspace", "project-a", {
+      display_filters: { layout: EIssueLayoutTypes.KANBAN },
+    });
+    const second = store.updateProjectUserProperties("workspace", "project-a", {
+      display_filters: { layout: EIssueLayoutTypes.LIST },
+    });
+
+    expect(store.getProjectUserProperties("project-a")?.display_filters.layout).toBe(EIssueLayoutTypes.LIST);
+
+    const staleKanban = createUserProperties();
+    staleKanban.display_filters = { layout: EIssueLayoutTypes.KANBAN };
+    firstUpdate.resolve(staleKanban);
+    await first;
+    expect(store.getProjectUserProperties("project-a")?.display_filters.layout).toBe(EIssueLayoutTypes.LIST);
+
+    const listProperties = createUserProperties();
+    listProperties.display_filters = { layout: EIssueLayoutTypes.LIST };
+    secondUpdate.resolve(listProperties);
+    await second;
+
+    expect(updateProperties).toHaveBeenCalledTimes(2);
+    expect(store.getProjectUserProperties("project-a")?.display_filters.layout).toBe(EIssueLayoutTypes.LIST);
+  });
+
+  it("does not let an in-flight fetch overwrite a newer optimistic update", async () => {
+    const store = createMemberStore();
+    const deferredFetch = createDeferred<IProjectUserPropertiesResponse>();
+    vi.spyOn(store.projectService, "getProjectUserProperties").mockReturnValue(deferredFetch.promise);
+    vi.spyOn(store.projectService, "updateProjectUserProperties").mockResolvedValue(createUserProperties());
+
+    const fetchPromise = store.fetchProjectUserProperties("workspace", "project-a");
+    await store.updateProjectUserProperties("workspace", "project-a", {
+      display_filters: { layout: EIssueLayoutTypes.LIST },
+    });
+    expect(store.getProjectUserProperties("project-a")?.display_filters.layout).toBe(EIssueLayoutTypes.LIST);
+
+    const staleKanban = createUserProperties();
+    staleKanban.display_filters = { layout: EIssueLayoutTypes.KANBAN };
+    deferredFetch.resolve(staleKanban);
+    await fetchPromise;
+
+    expect(store.getProjectUserProperties("project-a")?.display_filters.layout).toBe(EIssueLayoutTypes.LIST);
+  });
+
+  it("does not overwrite a newer local layout from a remote document", async () => {
+    const memberStore = createMemberStore();
+    const remote = createUserProperties();
+    remote.display_filters = { layout: EIssueLayoutTypes.LIST, order_by: "sort_order" };
+    vi.spyOn(memberStore.projectService, "getProjectUserProperties").mockResolvedValue(remote);
+    const fetchIssuesWithExistingPagination = vi.fn();
+    const rootIssueStore = {
+      currentUserId: undefined,
+      projectIssues: { fetchIssuesWithExistingPagination },
+      rootStore: {
+        memberRoot: {
+          project: memberStore,
+        },
+      },
+    };
+    const issueFilter = new ProjectIssuesFilter(rootIssueStore as never);
+    issueFilter.filters["project-a"] = {
+      richFilters: {},
+      displayFilters: { layout: EIssueLayoutTypes.GANTT, order_by: "sort_order" },
+      displayProperties: { assignee: true },
+      kanbanFilters: { group_by: [], sub_group_by: [] },
+    };
+
+    await issueFilter.fetchFilters("workspace", "project-a");
+
+    expect(issueFilter.getIssueFilters("project-a")?.displayFilters?.layout).toBe(EIssueLayoutTypes.GANTT);
+    expect(fetchIssuesWithExistingPagination).not.toHaveBeenCalled();
+  });
+
+  it("does not refetch issues when remote filters match the hydrated query params", async () => {
+    const memberStore = createMemberStore();
+    const properties = createUserProperties({ "property-a": true });
+    vi.spyOn(memberStore.projectService, "getProjectUserProperties").mockResolvedValue(properties);
+    const fetchIssuesWithExistingPagination = vi.fn();
+    const rootIssueStore = {
+      currentUserId: undefined,
+      projectIssues: { fetchIssuesWithExistingPagination },
+      rootStore: {
+        memberRoot: {
+          project: memberStore,
+        },
+      },
+    };
+    const issueFilter = new ProjectIssuesFilter(rootIssueStore as never);
+
+    await memberStore.fetchProjectUserProperties("workspace", "project-a");
+    issueFilter.hydrateFilters("workspace", "project-a");
+    await issueFilter.fetchFilters("workspace", "project-a");
+
+    expect(fetchIssuesWithExistingPagination).not.toHaveBeenCalled();
+  });
 });

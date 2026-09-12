@@ -281,6 +281,14 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
   }
 
   /**
+   * URL layout is write-through. A late remote document must not flip list/board/timeline
+   * after persistLayout has already updated the in-memory document.
+   */
+  protected withPreservedLayout(current: IIssueFilters | undefined, next: IIssueFilters): IIssueFilters {
+    return withPreservedLayout(current, next);
+  }
+
+  /**
    * Write display/rich/kanban filters for an entity. Used to hydrate from cache or apply a network response.
    * Returns false when the computed document already matches the stored one so observers do not churn.
    */
@@ -293,13 +301,9 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
     properties: TFilterPropertySource,
     displayFilterDefaults?: IIssueDisplayFilterOptions
   ) {
-    const next = this.buildEntityFilters(
-      workspaceSlug,
-      entityId,
-      storeType,
-      currentUserId,
-      properties,
-      displayFilterDefaults
+    const next = this.withPreservedLayout(
+      filters[entityId],
+      this.buildEntityFilters(workspaceSlug, entityId, storeType, currentUserId, properties, displayFilterDefaults)
     );
     if (this.entityFiltersMatch(filters[entityId], next)) return false;
 
@@ -610,4 +614,18 @@ export class IssueFilterHelperStore implements IIssueFilterHelperStore {
 
     return paginationParams;
   }
+}
+
+export function withPreservedLayout(current: IIssueFilters | undefined, next: IIssueFilters): IIssueFilters {
+  const localLayout = current?.displayFilters?.layout;
+  if (!localLayout || next.displayFilters?.layout === localLayout) {
+    return next;
+  }
+  return {
+    ...next,
+    displayFilters: {
+      ...next.displayFilters,
+      layout: localLayout,
+    },
+  };
 }

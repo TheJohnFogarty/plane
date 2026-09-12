@@ -15,7 +15,7 @@ import { SpreadsheetLayoutLoader } from "@/components/ui/loader/layouts/spreadsh
 import { useIssues } from "@/hooks/store/use-issues";
 import { useIssueStoreType } from "@/hooks/use-issue-layout-store";
 import { listKeyMatchesCollection } from "@/store/issue/helpers/collection-ref";
-import { shouldShowIssueLayoutLoader } from "./collection-layout-ready";
+import { hasUngroupedIssueIds, shouldShowIssueLayoutLoader } from "./collection-layout-ready";
 import { IssueLayoutEmptyState } from "./empty-states";
 
 export function ActiveLoader(props: { layout: EIssueLayoutTypes | undefined }) {
@@ -56,8 +56,13 @@ export const IssueLayoutHOC = observer(function IssueLayoutHOC(props: Props) {
 
   const isInitialLoading = "isInitialLoading" in issues && issues.isInitialLoading;
   const isCollectionEmpty = "isCollectionEmpty" in issues && issues.isCollectionEmpty;
+  const groupedIssueIds = "groupedIssueIds" in issues ? issues.groupedIssueIds : undefined;
 
   if (shouldShowIssueLayoutLoader(!!isInitialLoading, listKey, listBelongsToRoute)) {
+    return <ActiveLoader layout={layout} />;
+  }
+
+  if (layout === EIssueLayoutTypes.GANTT && !hasUngroupedIssueIds(groupedIssueIds)) {
     return <ActiveLoader layout={layout} />;
   }
 

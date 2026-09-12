@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { isEmpty, set } from "lodash-es";
+import { isEmpty, isEqual, set } from "lodash-es";
 import { runInAction } from "mobx";
 import { computedFn } from "mobx-utils";
 import type { TSupportedFilterTypeForUpdate } from "@plane/constants";
@@ -95,6 +95,7 @@ export abstract class EntityIssuesFilter extends IssueFilterHelperStore {
   hydrateRef = (ref: TCollectionRef) => {
     if (!isEmpty(this.filters[ref.entityId])) return;
     const source = this.hydrateFrom(ref);
+    if (!source) return;
     if (isCopiedIssueFilters(source)) {
       this.copyEntityFilters(this.filters, ref.entityId, source);
       return;
@@ -111,8 +112,10 @@ export abstract class EntityIssuesFilter extends IssueFilterHelperStore {
 
   fetchRef = async (ref: TCollectionRef) => {
     this.hydrateRef(ref);
+    const hadDocument = !isEmpty(this.filters[ref.entityId]);
+    const previousApplied = hadDocument ? this.getAppliedFilters(ref.entityId) : undefined;
     const remote = await this.fetchRemote(ref);
-    this.writeEntityFilters(
+    const wrote = this.writeEntityFilters(
       this.filters,
       ref.entityId,
       ref.workspaceSlug,
@@ -120,6 +123,10 @@ export abstract class EntityIssuesFilter extends IssueFilterHelperStore {
       this.rootIssueStore.currentUserId,
       remote
     );
+    if (!wrote || !hadDocument) return;
+    if (!isEqual(previousApplied, this.getAppliedFilters(ref.entityId))) {
+      this.refetchIssues(ref);
+    }
   };
 
   updateExpressionRef = async (ref: TCollectionRef, filters: TWorkItemFilterExpression) => {

@@ -141,6 +141,23 @@ describe("writeEntityFilters", () => {
     expect(filters["project-a"].displayProperties).toBe(firstDisplayProperties);
   });
 
+  it("keeps the in-memory layout when a remote document uses a different one", () => {
+    const store = new TestableFilterStore();
+    const filters: Record<string, IIssueFilters> = {};
+
+    store.write(filters, "project-a", {
+      ...remote,
+      display_filters: { layout: EIssueLayoutTypes.GANTT, group_by: "state" },
+    });
+    expect(
+      store.write(filters, "project-a", {
+        ...remote,
+        display_filters: { layout: EIssueLayoutTypes.LIST, group_by: "state" },
+      })
+    ).toBe(false);
+    expect(filters["project-a"].displayFilters?.layout).toBe(EIssueLayoutTypes.GANTT);
+  });
+
   it("writes when grouping differs from the hydrated document", () => {
     const store = new TestableFilterStore();
     const filters: Record<string, IIssueFilters> = {};

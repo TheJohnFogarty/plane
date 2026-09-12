@@ -115,6 +115,7 @@ export abstract class BaseProjectMemberStore implements IBaseProjectMemberStore 
   projectMemberService;
   projectService;
   private projectUserPropertiesFetchPromises = new Map<string, Promise<IProjectUserPropertiesResponse>>();
+  private projectUserPropertiesWriteVersion: Record<string, number> = {};
 
   constructor(_memberRoot: IMemberRootStore, _rootStore: RootStore) {
     makeObservable(this, {
@@ -512,6 +513,16 @@ export abstract class BaseProjectMemberStore implements IBaseProjectMemberStore 
    * @param projectId
    * @param data
    */
+  private nextUserPropertiesWriteVersion(projectId: string): number {
+    const next = (this.projectUserPropertiesWriteVersion[projectId] ?? 0) + 1;
+    this.projectUserPropertiesWriteVersion[projectId] = next;
+    return next;
+  }
+
+  private isCurrentUserPropertiesWriteVersion(projectId: string, version: number): boolean {
+    return (this.projectUserPropertiesWriteVersion[projectId] ?? 0) === version;
+  }
+
   fetchProjectUserProperties = async (
     workspaceSlug: string,
     projectId: string,
@@ -524,13 +535,16 @@ export abstract class BaseProjectMemberStore implements IBaseProjectMemberStore 
     const inFlightRequest = this.projectUserPropertiesFetchPromises.get(requestKey);
     if (inFlightRequest) return inFlightRequest;
 
+    const writeVersion = this.projectUserPropertiesWriteVersion[projectId] ?? 0;
     const request = this.projectService
       .getProjectUserProperties(workspaceSlug, projectId)
       .then((response) => {
-        runInAction(() => {
-          set(this.projectUserPropertiesMap, [projectId], response);
-        });
-        return response;
+        if (this.isCurrentUserPropertiesWriteVersion(projectId, writeVersion)) {
+          runInAction(() => {
+            set(this.projectUserPropertiesMap, [projectId], response);
+          });
+        }
+        return this.projectUserPropertiesMap[projectId] ?? response;
       })
       .finally(() => {
         this.projectUserPropertiesFetchPromises.delete(requestKey);
@@ -552,25 +566,29 @@ export abstract class BaseProjectMemberStore implements IBaseProjectMemberStore 
     data: Partial<IProjectUserPropertiesResponse>
   ): Promise<IProjectUserPropertiesResponse> => {
     const previousProperties = this.projectUserPropertiesMap[projectId];
+    const writeVersion = this.nextUserPropertiesWriteVersion(projectId);
     try {
       // Optimistically update the store
       runInAction(() => {
         this.setProjectUserProperties(projectId, data);
       });
       const response = await this.projectService.updateProjectUserProperties(workspaceSlug, projectId, data);
-      runInAction(() => {
-        set(this.projectUserPropertiesMap, [projectId], response);
-      });
-      return response;
+      if (this.isCurrentUserPropertiesWriteVersion(projectId, writeVersion)) {
+        runInAction(() => {
+          set(this.projectUserPropertiesMap, [projectId], response);
+        });
+      }
+      return this.projectUserPropertiesMap[projectId] ?? response;
     } catch (error) {
-      // Revert on error
-      runInAction(() => {
-        if (previousProperties) {
-          set(this.projectUserPropertiesMap, [projectId], previousProperties);
-        } else {
-          unset(this.projectUserPropertiesMap, [projectId]);
-        }
-      });
+      if (this.isCurrentUserPropertiesWriteVersion(projectId, writeVersion)) {
+        runInAction(() => {
+          if (previousProperties) {
+            set(this.projectUserPropertiesMap, [projectId], previousProperties);
+          } else {
+            unset(this.projectUserPropertiesMap, [projectId]);
+          }
+        });
+      }
       throw error;
     }
   };

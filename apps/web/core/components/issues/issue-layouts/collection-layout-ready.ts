@@ -4,7 +4,8 @@
  * See the LICENSE file for details.
  */
 
-import type { IIssueFilters } from "@plane/types";
+import { ALL_ISSUES } from "@plane/constants";
+import { EIssueLayoutTypes, type IIssueFilters } from "@plane/types";
 
 export function shouldShowIssueLayoutLoader(
   isInitialLoading: boolean,
@@ -14,14 +15,41 @@ export function shouldShowIssueLayoutLoader(
   return isInitialLoading || (listKey !== undefined && !listBelongsToRoute);
 }
 
+export function hasUngroupedIssueIds(groupedIssueIds: unknown): boolean {
+  return (
+    !!groupedIssueIds &&
+    typeof groupedIssueIds === "object" &&
+    Array.isArray((groupedIssueIds as Record<string, unknown>)[ALL_ISSUES])
+  );
+}
+
+export function syncGanttBlocksAfterInit(
+  initGantt: () => void,
+  setBlockIds: (ids: string[]) => void,
+  ungroupedIssueIds: unknown
+) {
+  initGantt();
+  setBlockIds(Array.isArray(ungroupedIssueIds) ? ungroupedIssueIds : []);
+}
+
 export function shouldRenderCollectionLoader(args: {
   workspaceSlug?: string;
   projectId?: string;
   entityId?: string;
   workItemFilters?: IIssueFilters;
   initialWorkItemFilters?: IIssueFilters;
+  urlLayout?: EIssueLayoutTypes;
+  storedLayout?: EIssueLayoutTypes;
+  syncLayout?: boolean;
 }): boolean {
-  return (
-    !args.workspaceSlug || !args.projectId || !args.entityId || !args.workItemFilters || !args.initialWorkItemFilters
-  );
+  if (
+    !args.workspaceSlug ||
+    !args.projectId ||
+    !args.entityId ||
+    !args.workItemFilters ||
+    !args.initialWorkItemFilters
+  ) {
+    return true;
+  }
+  return !!args.syncLayout && !!args.urlLayout && args.storedLayout !== args.urlLayout;
 }

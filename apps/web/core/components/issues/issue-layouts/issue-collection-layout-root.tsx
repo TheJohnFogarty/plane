@@ -136,7 +136,7 @@ export const IssueCollectionLayoutRoot = observer(function IssueCollectionLayout
     [collectionOps, collectionRef]
   );
 
-  const { activeLayout } = useCollectionLayoutRoute({
+  const { activeLayout, urlLayout } = useCollectionLayoutRoute({
     kind: collectionKind ?? "issues",
     workspaceSlug,
     projectId,
@@ -152,8 +152,9 @@ export const IssueCollectionLayoutRoot = observer(function IssueCollectionLayout
   useSWR(
     swrKey,
     async () => {
-      if (!collectionRef) return;
+      if (!collectionRef) return true;
       await collectionOps.fetchFilters(collectionRef);
+      return true;
     },
     { revalidateIfStale: false, revalidateOnFocus: false }
   );
@@ -185,6 +186,9 @@ export const IssueCollectionLayoutRoot = observer(function IssueCollectionLayout
     entityId,
     workItemFilters,
     initialWorkItemFilters,
+    urlLayout,
+    storedLayout: workItemFilters?.displayFilters?.layout,
+    syncLayout: !!collectionKind && !isArchived,
   });
 
   if (showLoader || !workspaceSlug || !projectId || !entityId || !initialWorkItemFilters) {

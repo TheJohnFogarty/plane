@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import { isEmpty, set } from "lodash-es";
+import { isEmpty, isEqual, set } from "lodash-es";
 import { action, computed, makeObservable, observable, runInAction } from "mobx";
 // base class
 import { computedFn } from "mobx-utils";
@@ -165,11 +165,18 @@ export class ProjectViewIssuesFilter extends IssueFilterHelperStore implements I
       kanbanFilters.sub_group_by = _kanbanFilters?.kanban_filters?.sub_group_by || [];
     }
 
+    const next = this.withPreservedLayout(this.filters[viewId], {
+      richFilters,
+      displayFilters,
+      displayProperties,
+      kanbanFilters,
+    });
+
     runInAction(() => {
-      set(this.filters, [viewId, "richFilters"], richFilters);
-      set(this.filters, [viewId, "displayFilters"], displayFilters);
-      set(this.filters, [viewId, "displayProperties"], displayProperties);
-      set(this.filters, [viewId, "kanbanFilters"], kanbanFilters);
+      set(this.filters, [viewId, "richFilters"], next.richFilters);
+      set(this.filters, [viewId, "displayFilters"], next.displayFilters);
+      set(this.filters, [viewId, "displayProperties"], next.displayProperties);
+      set(this.filters, [viewId, "kanbanFilters"], next.kanbanFilters);
     });
   });
 
@@ -182,8 +189,19 @@ export class ProjectViewIssuesFilter extends IssueFilterHelperStore implements I
 
   fetchFilters = async (workspaceSlug: string, projectId: string, viewId: string) => {
     try {
+      const hadDocument = !isEmpty(this.filters[viewId]);
+      const previousApplied = hadDocument ? this.getAppliedFilters(viewId) : undefined;
       const viewDetails = await this.issueFilterService.getViewDetails(workspaceSlug, projectId, viewId);
       this.mutateFilters(workspaceSlug, viewId, viewDetails);
+      if (!hadDocument) return;
+      if (!isEqual(previousApplied, this.getAppliedFilters(viewId))) {
+        this.rootIssueStore.projectViewIssues.fetchIssuesWithExistingPagination(
+          workspaceSlug,
+          projectId,
+          viewId,
+          "mutation"
+        );
+      }
     } catch (error) {
       console.log("error while fetching project view filters", error);
       throw error;

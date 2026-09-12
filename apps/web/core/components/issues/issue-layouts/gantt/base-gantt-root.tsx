@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import React, { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import React, { useCallback, useLayoutEffect, useState } from "react";
 import { observer } from "mobx-react";
 import { useParams } from "next/navigation";
 // plane imports
@@ -27,6 +27,7 @@ import { useIssuesActions } from "@/hooks/use-issues-actions";
 import { useTimeLineChart } from "@/hooks/use-timeline-chart";
 import { useBulkOperationStatus } from "@/hooks/use-bulk-operation-status";
 // local imports
+import { hasUngroupedIssueIds, syncGanttBlocksAfterInit } from "../collection-layout-ready";
 import { IssueLayoutHOC } from "../issue-layout-HOC";
 import { GanttQuickAddIssueButton } from "../quick-add/button/gantt";
 import { QuickAddIssueRoot } from "../quick-add/root";
@@ -56,7 +57,7 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
   const storeType = useIssueStoreType() as GanttStoreType;
   const { issues, issuesFilter } = useIssues(storeType);
   const { fetchIssues, fetchNextIssues, updateIssue, quickAddIssue } = useIssuesActions(storeType);
-  const { initGantt } = useTimeLineChart(GANTT_TIMELINE_TYPE.ISSUE);
+  const { initGantt, setBlockIds } = useTimeLineChart(GANTT_TIMELINE_TYPE.ISSUE);
   const { subIssues: subIssuesStore, issue: issueStore } = useIssueDetail(EIssueServiceType.ISSUES);
   // store hooks
   const { allowPermissions } = useUserPermissions();
@@ -79,11 +80,13 @@ export const BaseGanttRoot = observer(function BaseGanttRoot(props: IBaseGanttRo
     fetchIssues("init-loader", { canGroup: false, perPageCount: 100 }, viewId);
   }, [fetchIssues, storeType, viewId]);
 
-  useEffect(() => {
-    initGantt();
-  }, [initGantt]);
+  const ungroupedIssueIds = issues.groupedIssueIds?.[ALL_ISSUES];
+  const rootIssueIds = hasUngroupedIssueIds(issues.groupedIssueIds) ? (ungroupedIssueIds as string[]) : [];
 
-  const rootIssueIds = (issues.groupedIssueIds?.[ALL_ISSUES] as string[]) ?? [];
+  useLayoutEffect(() => {
+    syncGanttBlocksAfterInit(initGantt, setBlockIds, issues.groupedIssueIds?.[ALL_ISSUES]);
+  }, [initGantt, issues, setBlockIds]);
+
   const nextPageResults = issues.getPaginationData(undefined, undefined)?.nextPageResults;
 
   const { enableIssueCreation } = issues?.viewFlags || {};
