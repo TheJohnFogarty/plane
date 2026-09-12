@@ -1,0 +1,68 @@
+name: Project task workflows
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "docker-compose-test.yml"
+      - ".github/workflows/project-task-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-task-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - name: Enable pnpm
+        run: corepack enable pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build web workspace dependencies
+        run: pnpm turbo run build --filter='web^...'
+      - name: Run web regression tests
+        run: pnpm --filter web test
+
+  task-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure isolated test services
+        run: |
+          cp .env.example .env
+          cp apps/api/.env.example apps/api/.env
+      - name: Run project task workflows and supporting unit tests
+        run: |
+          docker compose -p plane-task-tests -f docker-compose-test.yml run --rm --build api-tests \
+            pytest plane/tests/contract/app/test_project_task_workflows.py \
+            plane/tests/unit/serializers/test_issue_dates.py \
+            plane/tests/unit/utils/test_work_item.py \
+            plane/tests/unit/utils/test_issue_query.py \
+            plane/tests/unit/utils/test_issue_filters_sub_issue.py \
+            -q --tb=short --junitxml=/code/test-results/project-task-workflows.xml
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-task-test-results
+          path: apps/api/test-results/project-task-workflows.xml
+          if-no-files-found: warn
+      - name: Stop isolated test services
+        if: always()
+        run: docker compose -p plane-task-tests -f docker-compose-test.yml down -v
