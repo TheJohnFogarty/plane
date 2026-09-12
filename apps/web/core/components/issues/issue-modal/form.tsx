@@ -49,6 +49,7 @@ import { DuplicateModalRoot } from "@/plane-web/components/de-dupe/duplicate-mod
 import { IssueTypeSelect, WorkItemTemplateSelect } from "@/plane-web/components/issues/issue-modal";
 import { WorkItemModalAdditionalProperties } from "@/plane-web/components/issues/issue-modal/modal-additional-properties";
 import { useDebouncedDuplicateIssues } from "@/hooks/use-debounced-duplicate-issues";
+import { useIssueFormReset } from "./use-issue-form-reset";
 
 export interface IssueFormProps {
   data?: Partial<TIssue>;
@@ -72,7 +73,7 @@ export interface IssueFormProps {
   handleDraftAndClose?: () => void;
   isProjectSelectionDisabled?: boolean;
   showActionButtons?: boolean;
-  dataResetProperties?: any[];
+  dataResetProperties?: unknown[];
   pendingAttachments?: TPendingAttachment[];
   onAddPendingAttachments?: (files: File[]) => void;
   onRemovePendingAttachment?: (id: string) => void;
@@ -102,7 +103,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
     handleDraftAndClose,
     isProjectSelectionDisabled = false,
     showActionButtons = true,
-    dataResetProperties = [],
+    dataResetProperties,
     pendingAttachments = [],
     onAddPendingAttachments,
     onRemovePendingAttachment,
@@ -150,7 +151,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
 
   // form info
   const methods = useForm<TIssue>({
-    defaultValues: { ...DEFAULT_WORK_ITEM_FORM_VALUES, project_id: defaultProjectId, ...data },
+    defaultValues: { ...DEFAULT_WORK_ITEM_FORM_VALUES, ...data, project_id: data?.project_id ?? defaultProjectId },
     reValidateMode: "onChange",
   });
   const {
@@ -202,12 +203,7 @@ export const IssueFormRoot = observer(function IssueFormRoot(props: IssueFormPro
     workspaceSlug,
   ]);
 
-  // Reset form when data prop changes
-  useEffect(() => {
-    if (data) {
-      reset({ ...DEFAULT_WORK_ITEM_FORM_VALUES, project_id: projectId, ...data });
-    }
-  }, [data, dataResetProperties, projectId, reset]);
+  useIssueFormReset(data, defaultProjectId, reset, dataResetProperties);
 
   // Prefetch work item types for the active project so type/property defaults can bind
   useEffect(() => {

@@ -4,7 +4,7 @@
  * See the LICENSE file for details.
  */
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react";
 import type { Control } from "react-hook-form";
 import { Controller } from "react-hook-form";
@@ -87,8 +87,11 @@ export const IssueDescriptionEditor = observer(function IssueDescriptionEditor(p
 
   const { getIndex } = getTabIndex(ETabIndices.ISSUE_FORM, isMobile);
 
+  const initializedDescription = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (descriptionHtmlData) handleDescriptionHTMLDataChange(descriptionHtmlData);
+    if (descriptionHtmlData === undefined || initializedDescription.current === descriptionHtmlData) return;
+    initializedDescription.current = descriptionHtmlData;
+    handleDescriptionHTMLDataChange(descriptionHtmlData);
   }, [descriptionHtmlData, handleDescriptionHTMLDataChange]);
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -132,9 +135,10 @@ export const IssueDescriptionEditor = observer(function IssueDescriptionEditor(p
         });
       else handleAiAssistance(res.response_html);
     } catch (err) {
-      const error = err?.data?.error;
+      const apiError = err as { data?: { error?: string }; status?: number };
+      const error = apiError.data?.error;
 
-      if (err.status === 429)
+      if (apiError.status === 429)
         setToast({
           type: TOAST_TYPE.ERROR,
           title: "Error!",
