@@ -377,7 +377,12 @@ const errorCodeMessages: {
   },
 };
 
-export const authErrorHandler = (errorCode: EAuthenticationErrorCodes, email?: string): TAuthErrorInfo | undefined => {
+export const authErrorHandler = (
+  errorCode?: EAuthenticationErrorCodes | string,
+  email?: string
+): TAuthErrorInfo | undefined => {
+  if (!errorCode) return undefined;
+  const code = errorCode as EAuthenticationErrorCodes;
   const bannerAlertErrorCodes = [
     EAuthenticationErrorCodes.INSTANCE_NOT_CONFIGURED,
     EAuthenticationErrorCodes.INVALID_EMAIL,
@@ -433,12 +438,12 @@ export const authErrorHandler = (errorCode: EAuthenticationErrorCodes, email?: s
     EAuthenticationErrorCodes.PASSWORD_TOO_WEAK,
   ];
 
-  if (bannerAlertErrorCodes.includes(errorCode))
+  if (bannerAlertErrorCodes.includes(code))
     return {
       type: EErrorAlertType.BANNER_ALERT,
-      code: errorCode,
-      title: errorCodeMessages[errorCode]?.title || "Error",
-      message: errorCodeMessages[errorCode]?.message(email) || "Something went wrong. Please try again.",
+      code,
+      title: errorCodeMessages[code]?.title || "Error",
+      message: errorCodeMessages[code]?.message(email) || "Something went wrong. Please try again.",
     };
 
   return undefined;

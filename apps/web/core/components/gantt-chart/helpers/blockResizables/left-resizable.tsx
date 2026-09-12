@@ -15,7 +15,7 @@ import { useTimeLineChartStore } from "@/hooks/use-timeline-chart";
 
 type LeftResizableProps = {
   enableBlockLeftResize: boolean;
-  handleBlockDrag: (e: React.MouseEvent<HTMLDivElement, MouseEvent>, dragDirection: "left" | "right" | "move") => void;
+  handleBlockDrag: (e: React.MouseEvent<HTMLElement, MouseEvent>, dragDirection: "left" | "right" | "move") => void;
   isMoving: "left" | "right" | "move" | undefined;
   position?: {
     marginLeft: number;

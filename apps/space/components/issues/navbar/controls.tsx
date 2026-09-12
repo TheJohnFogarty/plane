@@ -18,7 +18,7 @@ import useIsInIframe from "@/hooks/use-is-in-iframe";
 // store
 import type { PublishStore } from "@/store/publish/publish.store";
 // types
-import type { TIssueLayout } from "@/types/issue";
+import type { TIssueFilters, TIssueLayout } from "@/types/issue";
 // local imports
 import { IssuesLayoutSelection } from "./layout-selection";
 import { NavbarTheme } from "./theme";
@@ -26,6 +26,12 @@ import { UserAvatar } from "./user-avatar";
 
 export type NavbarControlsProps = {
   publishSettings: PublishStore;
+};
+
+const toStringList = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string" && value.length > 0) return value.split(",");
+  return [];
 };
 
 export const NavbarControls = observer(function NavbarControls(props: NavbarControlsProps) {
@@ -73,13 +79,12 @@ export const NavbarControls = observer(function NavbarControls(props: NavbarCont
       if (currentBoard) {
         if (activeLayout === undefined || activeLayout !== currentBoard) {
           const { query, queryParam } = queryParamGenerator({ board: currentBoard, peekId, priority, state, labels });
-          const boardValues = query.board;
-          const params = {
-            display_filters: { layout: Array.isArray(boardValues) ? boardValues[0] : currentBoard },
+          const params: TIssueFilters = {
+            display_filters: { layout: currentBoard },
             filters: {
-              priority: query.priority ?? undefined,
-              state: query.state ?? undefined,
-              labels: query.labels ?? undefined,
+              priority: toStringList(query.priority) as TIssueFilters["filters"]["priority"],
+              state: toStringList(query.state) as TIssueFilters["filters"]["state"],
+              labels: toStringList(query.labels),
             },
           };
 

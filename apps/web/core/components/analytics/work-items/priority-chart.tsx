@@ -31,7 +31,9 @@ import { ChartLoader } from "../loaders";
 import { generateBarColor } from "./utils";
 
 declare module "@tanstack/react-table" {
-  interface ColumnMeta<TData extends RowData, _TValue> {
+  // Declaration merging requires the upstream type parameter names.
+  // oxlint-disable-next-line no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
     export: {
       key: string;
       value: (row: Row<TData>) => string | number;

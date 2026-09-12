@@ -4,8 +4,8 @@
  * See the LICENSE file for details.
  */
 
+import axios, { isCancel } from "axios";
 import type { AxiosRequestConfig, CancelTokenSource } from "axios";
-import { CancelToken, isCancel } from "axios";
 // services
 import { APIService } from "@/services/api.service";
 
@@ -21,12 +21,15 @@ export class FileUploadService extends APIService {
     data: FormData,
     uploadProgressHandler?: AxiosRequestConfig["onUploadProgress"]
   ): Promise<void> {
-    this.cancelSource = CancelToken.source();
+    // Axios exposes the typed cancellation constructor on its default export.
+    // oxlint-disable-next-line import/no-named-as-default-member
+    const cancelSource = axios.CancelToken.source();
+    this.cancelSource = cancelSource;
     return this.post(url, data, {
       headers: {
         "Content-Type": "multipart/form-data",
       },
-      cancelToken: this.cancelSource.token,
+      cancelToken: cancelSource.token,
       withCredentials: false,
       onUploadProgress: uploadProgressHandler,
     })

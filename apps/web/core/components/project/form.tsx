@@ -99,11 +99,11 @@ export function ProjectDetailsForm(props: IProjectDetailsForm) {
     } catch (err) {
       try {
         // Handle the new error format where codes are nested in arrays under field names
-        const errorData = err ?? {};
+        const errorData = (err ?? {}) as { name?: string[]; identifier?: string[] };
 
         const nameError = errorData.name?.includes("PROJECT_NAME_ALREADY_EXIST");
-        const identifierError = errorData?.identifier?.includes("PROJECT_IDENTIFIER_ALREADY_EXIST");
-        const nameSpecialCharError = errorData?.name?.includes("PROJECT_NAME_CANNOT_CONTAIN_SPECIAL_CHARACTERS");
+        const identifierError = errorData.identifier?.includes("PROJECT_IDENTIFIER_ALREADY_EXIST");
+        const nameSpecialCharError = errorData.name?.includes("PROJECT_NAME_CANNOT_CONTAIN_SPECIAL_CHARACTERS");
 
         if (nameError || identifierError || nameSpecialCharError) {
           if (nameError) {

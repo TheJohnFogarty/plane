@@ -34,10 +34,7 @@ export const useGanttResizable = (
   const [isMoving, setIsMoving] = useState<"left" | "right" | "move" | undefined>();
 
   // handle block resize from the left end
-  const handleBlockDrag = (
-    e: React.MouseEvent<HTMLDivElement, MouseEvent>,
-    dragDirection: "left" | "right" | "move"
-  ) => {
+  const handleBlockDrag = (e: React.MouseEvent<HTMLElement, MouseEvent>, dragDirection: "left" | "right" | "move") => {
     const ganttContainerElement = ganttContainerRef.current;
     if (!currentViewData || !resizableRef.current || !block.position || !ganttContainerElement) return;
 

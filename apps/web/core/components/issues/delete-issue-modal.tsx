@@ -90,8 +90,9 @@ export const DeleteIssueModal = observer(function DeleteIssueModal(props: Props)
         });
         onClose();
       } catch (errors) {
+        const apiError = errors as { error?: string };
         const isPermissionError =
-          errors?.error ===
+          apiError.error ===
           `Only admin or creator can delete the ${isSubIssue ? "sub-work item" : isEpic ? "epic" : "work item"}`;
         const currentError = isPermissionError
           ? PROJECT_ERROR_MESSAGES.permissionError

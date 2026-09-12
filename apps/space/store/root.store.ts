@@ -61,8 +61,8 @@ export class RootStore {
 
   hydrate = (data?: { instance?: IInstance; user?: IUser }) => {
     if (!data) return;
-    this.instance.hydrate(data?.instance || undefined);
-    this.user.hydrate(data?.user || undefined);
+    if (data.instance) this.instance.hydrate(data.instance);
+    this.user.hydrate(data.user);
   };
 
   reset() {

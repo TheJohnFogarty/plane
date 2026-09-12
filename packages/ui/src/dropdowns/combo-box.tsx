@@ -21,6 +21,9 @@ type Props = {
   renderByDefault?: boolean;
   button: ReactNode;
   children: ReactNode;
+  role?: string;
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
 };
 
 const ComboDropDown = forwardRef(function ComboDropDown(props: Props, ref) {

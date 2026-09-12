@@ -20,7 +20,7 @@ import { RightResizable } from "./blockResizables/right-resizable";
 type Props = {
   block: IGanttBlock;
   blockToRender: (data: any) => React.ReactNode;
-  handleBlockDrag: (e: React.MouseEvent<HTMLDivElement, MouseEvent>, dragDirection: "left" | "right" | "move") => void;
+  handleBlockDrag: (e: React.MouseEvent<HTMLElement, MouseEvent>, dragDirection: "left" | "right" | "move") => void;
   isMoving: "left" | "right" | "move" | undefined;
   enableBlockLeftResize: boolean;
   enableBlockRightResize: boolean;

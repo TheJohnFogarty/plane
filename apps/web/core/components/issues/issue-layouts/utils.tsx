@@ -633,7 +633,7 @@ export const handleGroupDragDrop = async (
  * @param groupedIssueIds
  * @returns
  */
-export const isSubGrouped = (groupedIssueIds: TGroupedIssues) => {
+export const isSubGrouped = (groupedIssueIds: TGroupedIssues | TSubGroupedIssues) => {
   if (!groupedIssueIds || Array.isArray(groupedIssueIds)) {
     return false;
   }

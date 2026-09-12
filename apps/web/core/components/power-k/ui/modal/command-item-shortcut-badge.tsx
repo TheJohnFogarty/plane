@@ -71,6 +71,7 @@ export function ShortcutBadge({ shortcut }: { shortcut: string | undefined }) {
   if (!shortcut) return null;
 
   const formatted = formatShortcutForDisplay(shortcut);
+  if (!formatted) return null;
 
   const shortcutParts = formatted.split("").map((char, index) => ({
     char,

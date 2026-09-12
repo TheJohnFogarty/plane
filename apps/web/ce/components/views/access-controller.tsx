@@ -4,6 +4,12 @@
  * See the LICENSE file for details.
  */
 
-export function AccessController(_props: unknown) {
+import type { Control, FieldValues } from "react-hook-form";
+
+type AccessControllerProps<TFieldValues extends FieldValues> = {
+  control: Control<TFieldValues>;
+};
+
+export function AccessController<TFieldValues extends FieldValues>(_props: AccessControllerProps<TFieldValues>) {
   return <></>;
 }
