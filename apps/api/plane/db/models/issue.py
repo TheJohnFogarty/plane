@@ -9,7 +9,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models, transaction, connection
 from django.utils import timezone
 from django.db.models import Q
@@ -65,6 +65,12 @@ class IssueManager(SoftDeletionManager):
 
 class Issue(ChangeTrackerMixin, ProjectBaseModel):
     TRACKED_FIELDS = ["state_id"]
+    color = models.CharField(
+        max_length=7,
+        blank=True,
+        default="",
+        validators=[RegexValidator(r"^#[0-9a-fA-F]{6}$", "Enter a six-digit hex color.")],
+    )
 
     PRIORITY_CHOICES = (
         ("urgent", "Urgent"),

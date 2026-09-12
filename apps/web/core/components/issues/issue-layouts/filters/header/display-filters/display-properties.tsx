@@ -114,13 +114,20 @@ export const FilterDisplayProperties = observer(function FilterDisplayProperties
               key={displayProperty.key}
               type="button"
               className={`rounded-sm border px-2 py-0.5 text-11 transition-all ${
-                displayProperties?.[displayProperty.key]
+                (
+                  displayProperty.key === "parent"
+                    ? displayProperties.parent !== false
+                    : displayProperties?.[displayProperty.key]
+                )
                   ? "border-accent-strong bg-accent-primary text-on-color"
                   : "border-subtle hover:bg-layer-1"
               }`}
               onClick={() =>
                 handleUpdate({
-                  [displayProperty.key]: !displayProperties?.[displayProperty.key],
+                  [displayProperty.key]:
+                    displayProperty.key === "parent"
+                      ? displayProperties.parent === false
+                      : !displayProperties?.[displayProperty.key],
                 })
               }
             >

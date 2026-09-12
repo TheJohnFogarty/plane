@@ -173,6 +173,7 @@ export const ISSUE_DISPLAY_PROPERTIES: {
   key: TIssueDisplayPropertyKey;
   titleTranslationKey: string;
 }[] = [
+  { key: "parent", titleTranslationKey: "common.parent" },
   {
     key: "key",
     titleTranslationKey: "issue.display.properties.id",

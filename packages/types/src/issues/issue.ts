@@ -46,6 +46,15 @@ export type TBaseIssue = {
   id: string;
   sequence_id: number;
   name: string;
+  color?: string;
+  parent_summary?: {
+    id: string;
+    name: string;
+    color: string;
+    sequence_id: number;
+    project_id: string;
+    project_identifier: string;
+  } | null;
   sort_order: number;
 
   state_id: string | null;

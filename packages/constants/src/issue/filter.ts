@@ -126,7 +126,7 @@ export const ISSUE_DISPLAY_FILTERS_BY_PAGE: TIssueFiltersToDisplayByPageType = {
         },
       },
       kanban: {
-        display_properties: ISSUE_DISPLAY_PROPERTIES_KEYS,
+        display_properties: [...ISSUE_DISPLAY_PROPERTIES_KEYS, "parent"],
         display_filters: {
           group_by: ["state_detail.group", "priority", "project", "labels"],
           order_by: ["sort_order", "-created_at", "-updated_at", "start_date", "-priority"],
@@ -234,7 +234,7 @@ export const ISSUE_DISPLAY_FILTERS_BY_PAGE: TIssueFiltersToDisplayByPageType = {
         },
       },
       kanban: {
-        display_properties: ISSUE_DISPLAY_PROPERTIES_KEYS,
+        display_properties: [...ISSUE_DISPLAY_PROPERTIES_KEYS, "parent"],
         display_filters: {
           group_by: ["state", "priority", "cycle", "module", "labels", "assignees", "created_by"],
           sub_group_by: ["state", "priority", "cycle", "module", "labels", "assignees", "created_by", null],

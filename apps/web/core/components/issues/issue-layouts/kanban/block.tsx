@@ -36,6 +36,7 @@ import { IssueIdentifier } from "@/plane-web/components/issues/issue-details/iss
 // local components
 import { IssueStats } from "@/plane-web/components/issues/issue-layouts/issue-stats";
 import type { TRenderQuickActions } from "../list/list-view-types";
+import { KanbanParentBadge } from "./parent-badge";
 import { IssueProperties } from "../properties/all-properties";
 import { WithDisplayPropertiesHOC } from "../properties/with-display-properties-HOC";
 
@@ -124,6 +125,8 @@ const KanbanIssueDetailsBlock = observer(function KanbanIssueDetailsBlock(props:
           <span>{issue.name}</span>
         </div>
       </Tooltip>
+
+      {displayProperties?.parent !== false && <KanbanParentBadge issue={issue} />}
 
       <IssueProperties
         className="flex flex-wrap items-center gap-2 pt-1.5 whitespace-nowrap text-tertiary"
@@ -281,6 +284,11 @@ export const KanbanIssueBlock = observer(function KanbanIssueBlock(props: IssueB
             { "border border-accent-strong hover:border-accent-strong": getIsIssuePeeked(issue.id) },
             { "z-[100] bg-layer-1": isCurrentBlockDragging }
           )}
+          style={
+            /^#[0-9a-f]{6}$/i.test(issue.color ?? "")
+              ? { borderInlineStartColor: issue.color, borderInlineStartWidth: 3 }
+              : undefined
+          }
           onClick={() => handleIssuePeekOverview(issue)}
           disabled={!!issue?.tempId}
         >

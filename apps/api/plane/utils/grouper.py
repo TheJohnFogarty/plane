@@ -16,7 +16,7 @@ from django.db.models import (
     Value,
     When,
 )
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, JSONObject
 
 # Module imports
 from plane.db.models import (
@@ -38,6 +38,8 @@ from typing import Optional, Dict, Any, Union, List, Iterable
 ISSUE_BOARD_FIELDS = [
     "id",
     "name",
+    "color",
+    "parent_summary",
     "state_id",
     "sort_order",
     "completed_at",
@@ -76,9 +78,24 @@ _RELATION_TO_GROUP_FIELD = {value: key for key, value in _GROUP_FIELD_TO_RELATIO
 
 
 def annotate_issue_relation_ids(queryset: QuerySet[Issue], skip: Optional[Iterable[str]] = None) -> QuerySet[Issue]:
-    """Canonical assignee / label / module id annotations for board and detail."""
+    """Canonical relation IDs and parent summary for board and detail."""
     skip = set(skip or ())
-    annotations = {}
+    annotations = {
+        "parent_summary": Subquery(
+            Issue.objects.filter(pk=OuterRef("parent_id"), workspace_id=OuterRef("workspace_id"))
+            .annotate(
+                summary=JSONObject(
+                    id="id",
+                    name="name",
+                    color="color",
+                    sequence_id="sequence_id",
+                    project_id="project_id",
+                    project_identifier="project__identifier",
+                )
+            )
+            .values("summary")[:1]
+        ),
+    }
 
     if "assignee_ids" not in skip:
         annotations["assignee_ids"] = Coalesce(

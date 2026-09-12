@@ -39,6 +39,7 @@ import { TransferHopInfo } from "@/plane-web/components/issues/issue-details/sid
 import { IssueWorklogProperty } from "@/plane-web/components/issues/worklog/property";
 import type { TIssueOperations } from "./issue-detail";
 import { IssuePeekOverviewLoader } from "./peek-overview/loader";
+import { WorkItemColorPicker } from "./work-item-color-picker";
 import { IssueCycleSelect } from "./issue-detail/cycle-select";
 import { IssueLabel } from "./issue-detail/label";
 import { IssueModuleSelect } from "./issue-detail/module-select";
@@ -243,6 +244,13 @@ export const WorkItemPropertyEditor = observer(function WorkItemPropertyEditor(p
           workspaceSlug={workspaceSlug}
         />
       </SidebarPropertyListItem>
+
+      <WorkItemColorPicker
+        key={`${issue.id}-${issue.color ?? ""}`}
+        color={issue.color ?? ""}
+        disabled={disabled}
+        onChange={(color) => issueOperations.update(workspaceSlug, projectId, issueId, { color })}
+      />
 
       <SidebarPropertyListItem icon={LabelPropertyIcon} label={t("common.labels")}>
         <IssueLabel workspaceSlug={workspaceSlug} projectId={projectId} issueId={issueId} disabled={disabled} />

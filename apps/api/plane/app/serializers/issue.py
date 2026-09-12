@@ -794,6 +794,7 @@ class IssueIntakeSerializer(DynamicBaseSerializer):
 
 
 class IssueSerializer(DynamicBaseSerializer):
+    parent_summary = serializers.JSONField(read_only=True, default=None)
     # ids
     cycle_id = serializers.PrimaryKeyRelatedField(read_only=True)
     module_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
@@ -813,6 +814,8 @@ class IssueSerializer(DynamicBaseSerializer):
         fields = [
             "id",
             "name",
+            "color",
+            "parent_summary",
             "state_id",
             "sort_order",
             "completed_at",
@@ -884,6 +887,8 @@ class IssueListDetailSerializer(serializers.Serializer):
         data = {
             "id": instance.id,
             "name": instance.name,
+            "color": instance.color,
+            "parent_summary": getattr(instance, "parent_summary", None),
             "state_id": instance.state_id,
             "sort_order": instance.sort_order,
             "completed_at": instance.completed_at,

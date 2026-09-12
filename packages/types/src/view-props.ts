@@ -163,6 +163,7 @@ export interface IIssueDisplayFilterOptions {
 }
 /** Built-in display property keys (excludes nested custom_properties map). */
 export type TIssueDisplayPropertyKey =
+  | "parent"
   | "assignee"
   | "start_date"
   | "due_date"
