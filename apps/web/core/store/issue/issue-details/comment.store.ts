@@ -11,6 +11,7 @@ import type { TIssueComment, TIssueCommentMap, TIssueCommentIdMap, TIssueService
 // services
 import { IssueCommentService } from "@/services/issue";
 // types
+import { IssueHistoryPagination } from "./history-pagination";
 import type { IIssueDetail } from "./root.store";
 
 export type TCommentLoader = "fetch" | "create" | "update" | "delete" | "mutate" | undefined;
@@ -39,6 +40,8 @@ export interface IIssueCommentStoreActions {
 }
 
 export interface IIssueCommentStore extends IIssueCommentStoreActions {
+  history: IssueHistoryPagination<TIssueComment>;
+  fetchOlderComments: (workspace: string, project: string, issue: string) => Promise<TIssueComment[]>;
   // observables
   loader: TCommentLoader;
   comments: TIssueCommentIdMap;
@@ -58,6 +61,7 @@ export class IssueCommentStore implements IIssueCommentStore {
   rootIssueDetail: IIssueDetail;
   // services
   issueCommentService;
+  history: IssueHistoryPagination<TIssueComment>;
 
   constructor(rootStore: IIssueDetail, serviceType: TIssueServiceType) {
     makeObservable(this, {
@@ -76,6 +80,9 @@ export class IssueCommentStore implements IIssueCommentStore {
     this.rootIssueDetail = rootStore;
     // services
     this.issueCommentService = new IssueCommentService(serviceType);
+    this.history = new IssueHistoryPagination((workspace, project, issue, params) =>
+      this.issueCommentService.getIssueCommentsPage(workspace, project, issue, params)
+    );
   }
 
   // helper methods
@@ -97,15 +104,24 @@ export class IssueCommentStore implements IIssueCommentStore {
   ) => {
     this.loader = loaderType;
 
-    let props = {};
-    const _commentIds = this.getCommentsByIssueId(issueId);
-    if (_commentIds && _commentIds.length > 0) {
-      const _comment = this.getCommentById(_commentIds[_commentIds.length - 1]);
-      if (_comment) props = { created_at__gt: _comment.created_at };
+    try {
+      const comments = await this.history.fetch(workspaceSlug, projectId, issueId);
+      this.applyComments(issueId, comments);
+      return comments;
+    } finally {
+      runInAction(() => {
+        this.loader = undefined;
+      });
     }
+  };
 
-    const comments = await this.issueCommentService.getIssueComments(workspaceSlug, projectId, issueId, props);
+  fetchOlderComments = async (workspace: string, project: string, issueId: string) => {
+    const comments = await this.history.fetch(workspace, project, issueId, true);
+    this.applyComments(issueId, comments);
+    return comments;
+  };
 
+  private applyComments(issueId: string, comments: TIssueComment[]) {
     const commentIds = comments.map((comment) => comment.id);
     runInAction(() => {
       update(this.comments, issueId, (existingCommentIds) => {
@@ -118,9 +134,7 @@ export class IssueCommentStore implements IIssueCommentStore {
       });
       this.loader = undefined;
     });
-
-    return comments;
-  };
+  }
 
   createComment = async (workspaceSlug: string, projectId: string, issueId: string, data: Partial<TIssueComment>) => {
     const response = await this.issueCommentService.createIssueComment(workspaceSlug, projectId, issueId, data);

@@ -35,7 +35,7 @@ export type TIssueActivityIssueDetail = {
   sequence_id: number;
   sort_order: boolean;
   name: string;
-  description_html: string;
+  description_html?: string;
   priority: TIssuePriorities;
   start_date: string;
   target_date: string;
@@ -87,3 +87,6 @@ export type TIssueActivityComment =
       activity_type: "ISSUE_ADDITIONAL_PROPERTIES_ACTIVITY";
       created_at?: string;
     };
+
+export type TIssueHistoryPage<T> = { results: T[]; next_cursor: string | null };
+export type TIssueHistoryParams = { cursor?: string; after?: string; after_id?: string };

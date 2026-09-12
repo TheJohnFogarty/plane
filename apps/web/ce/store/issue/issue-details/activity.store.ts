@@ -20,6 +20,7 @@ import type {
 import { EIssueServiceType } from "@plane/types";
 // plane web constants
 // services
+import { IssueHistoryPagination } from "@/store/issue/issue-details/history-pagination";
 import { IssueActivityService } from "@/services/issue";
 // store
 import type { CoreRootStore } from "@/store/root.store";
@@ -37,6 +38,8 @@ export interface IIssueActivityStoreActions {
 }
 
 export interface IIssueActivityStore extends IIssueActivityStoreActions {
+  history: IssueHistoryPagination<TIssueActivity>;
+  fetchOlderActivities: (workspace: string, project: string, issue: string) => Promise<TIssueActivity[]>;
   // observables
   loader: TActivityLoader;
   activities: TIssueActivityIdMap;
@@ -55,6 +58,7 @@ export class IssueActivityStore implements IIssueActivityStore {
   // services
   serviceType;
   issueActivityService;
+  history: IssueHistoryPagination<TIssueActivity>;
 
   constructor(
     protected store: CoreRootStore,
@@ -71,6 +75,9 @@ export class IssueActivityStore implements IIssueActivityStore {
     this.serviceType = serviceType;
     // services
     this.issueActivityService = new IssueActivityService(this.serviceType);
+    this.history = new IssueHistoryPagination((workspace, project, issue, params) =>
+      this.issueActivityService.getIssueActivitiesPage(workspace, project, issue, params)
+    );
   }
 
   // helper methods
@@ -95,9 +102,9 @@ export class IssueActivityStore implements IIssueActivityStore {
     const activities = this.getActivitiesByIssueId(issueId);
     const comments = currentStore.comment.getCommentsByIssueId(issueId);
 
-    if (!activities || !comments) return undefined;
+    if (!activities && !comments) return undefined;
 
-    activities.forEach((activityId) => {
+    (activities ?? []).forEach((activityId) => {
       const activity = this.getActivityById(activityId);
       if (!activity) return;
       const type =
@@ -115,7 +122,7 @@ export class IssueActivityStore implements IIssueActivityStore {
       });
     });
 
-    comments.forEach((commentId) => {
+    (comments ?? []).forEach((commentId) => {
       const comment = currentStore.comment.getCommentById(commentId);
       if (!comment) return;
       activityComments.push({
@@ -129,7 +136,7 @@ export class IssueActivityStore implements IIssueActivityStore {
   }
 
   protected sortActivityComments(items: TIssueActivityComment[], sortOrder: E_SORT_ORDER): TIssueActivityComment[] {
-    return orderBy(items, (e) => new Date(e.created_at || 0), sortOrder);
+    return orderBy(items, [(e) => new Date(e.created_at || 0), "id"], [sortOrder, sortOrder]);
   }
 
   getActivityAndCommentsByIssueId = computedFn((issueId: string, sortOrder: E_SORT_ORDER) => {
@@ -148,32 +155,34 @@ export class IssueActivityStore implements IIssueActivityStore {
     try {
       this.loader = loaderType;
 
-      let props = {};
-      const currentActivityIds = this.getActivitiesByIssueId(issueId);
-      if (currentActivityIds && currentActivityIds.length > 0) {
-        const currentActivity = this.getActivityById(currentActivityIds[currentActivityIds.length - 1]);
-        if (currentActivity) props = { created_at__gt: currentActivity.created_at };
-      }
-
-      const activities = await this.issueActivityService.getIssueActivities(workspaceSlug, projectId, issueId, props);
-
-      const activityIds = activities.map((activity) => activity.id);
-
+      const activities = await this.history.fetch(workspaceSlug, projectId, issueId);
+      this.applyActivities(issueId, activities);
+      return activities;
+    } finally {
       runInAction(() => {
-        update(this.activities, issueId, (existingActivityIds) => {
-          if (!existingActivityIds) return activityIds;
-          return uniq(concat(existingActivityIds, activityIds));
-        });
-        activities.forEach((activity) => {
-          set(this.activityMap, activity.id, activity);
-        });
         this.loader = undefined;
       });
-
-      return activities;
-    } catch (error) {
-      this.loader = undefined;
-      throw error;
     }
+  }
+
+  fetchOlderActivities = async (workspace: string, project: string, issueId: string) => {
+    const activities = await this.history.fetch(workspace, project, issueId, true);
+    this.applyActivities(issueId, activities);
+    return activities;
+  };
+
+  private applyActivities(issueId: string, activities: TIssueActivity[]) {
+    const activityIds = activities.map((activity) => activity.id);
+
+    runInAction(() => {
+      update(this.activities, issueId, (existingActivityIds) => {
+        if (!existingActivityIds) return activityIds;
+        return uniq(concat(existingActivityIds, activityIds));
+      });
+      activities.forEach((activity) => {
+        set(this.activityMap, activity.id, activity);
+      });
+      this.loader = undefined;
+    });
   }
 }

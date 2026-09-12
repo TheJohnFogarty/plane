@@ -17,6 +17,8 @@ from rest_framework import status
 # Module imports
 from .. import BaseAPIView
 from plane.app.serializers import IssueActivitySerializer, IssueCommentSerializer
+from plane.app.serializers.issue_history import IssueHistoryActivitySerializer, IssueHistoryCommentSerializer
+from plane.utils.issue_history import issue_history_page
 from plane.app.permissions import ProjectEntityPermission, allow_permission, ROLE
 from plane.db.models import IssueActivity, IssueComment, CommentReaction, IntakeIssue
 
@@ -67,14 +69,42 @@ class IssueActivityEndpoint(BaseAPIView):
             issue_activities = issue_activities.prefetch_related(
                 Prefetch(
                     "issue__issue_intake",
-                    queryset=IntakeIssue.objects.only("source_email", "source", "extra"),
+                    queryset=IntakeIssue.objects.only("issue_id", "source_email", "source", "extra"),
                     to_attr="source_data",
                 )
             )
+            if "limit" in request.query_params:
+                return Response(
+                    issue_history_page(
+                        issue_activities.defer(
+                            "issue__description_html",
+                            "issue__description_json",
+                            "issue__description_binary",
+                            "issue__description_stripped",
+                        ),
+                        request,
+                        IssueHistoryActivitySerializer,
+                        issue_id,
+                    )
+                )
             issue_activities = IssueActivitySerializer(issue_activities, many=True).data
             return Response(issue_activities, status=status.HTTP_200_OK)
 
         if request.GET.get("activity_type", None) == "issue-comment":
+            if "limit" in request.query_params:
+                return Response(
+                    issue_history_page(
+                        issue_comments.defer(
+                            "issue__description_html",
+                            "issue__description_json",
+                            "issue__description_binary",
+                            "issue__description_stripped",
+                        ),
+                        request,
+                        IssueHistoryCommentSerializer,
+                        issue_id,
+                    )
+                )
             issue_comments = IssueCommentSerializer(issue_comments, many=True).data
             return Response(issue_comments, status=status.HTTP_200_OK)
 

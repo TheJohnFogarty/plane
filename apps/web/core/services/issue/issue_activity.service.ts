@@ -11,12 +11,29 @@ import { APIService } from "@/services/api.service";
 // types
 // helper
 
+import type { TIssueHistoryPage, TIssueHistoryParams } from "@plane/types";
+
 export class IssueActivityService extends APIService {
   private serviceType: TIssueServiceType;
 
   constructor(serviceType: TIssueServiceType = EIssueServiceType.ISSUES) {
     super(API_BASE_URL);
     this.serviceType = serviceType;
+  }
+
+  async getIssueActivitiesPage(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    params: TIssueHistoryParams
+  ): Promise<TIssueHistoryPage<TIssueActivity>> {
+    const response = await this.get(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/history/`,
+      {
+        params: { activity_type: "issue-property", limit: 50, ...params },
+      }
+    );
+    return response.data;
   }
 
   async getIssueActivities(

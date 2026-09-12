@@ -12,6 +12,8 @@ import { EIssueServiceType } from "@plane/types";
 import { APIService } from "@/services/api.service";
 import { FileUploadService } from "@/services/file-upload.service";
 
+import type { TIssueHistoryPage, TIssueHistoryParams } from "@plane/types";
+
 export class IssueCommentService extends APIService {
   private fileUploadService: FileUploadService;
   private serviceType: TIssueServiceType;
@@ -21,6 +23,21 @@ export class IssueCommentService extends APIService {
     // upload service
     this.fileUploadService = new FileUploadService();
     this.serviceType = serviceType;
+  }
+
+  async getIssueCommentsPage(
+    workspaceSlug: string,
+    projectId: string,
+    issueId: string,
+    params: TIssueHistoryParams
+  ): Promise<TIssueHistoryPage<TIssueComment>> {
+    const response = await this.get(
+      `/api/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}/history/`,
+      {
+        params: { activity_type: "issue-comment", limit: 50, ...params },
+      }
+    );
+    return response.data;
   }
 
   async getIssueComments(

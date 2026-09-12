@@ -4,6 +4,8 @@
  * See the LICENSE file for details.
  */
 
+import { useState } from "react";
+import { useTranslation } from "@plane/i18n";
 import { observer } from "mobx-react";
 // plane imports
 import type { E_SORT_ORDER, TActivityFilters, EActivityFilterType } from "@plane/constants";
@@ -44,22 +46,49 @@ export const IssueActivityCommentRoot = observer(function IssueActivityCommentRo
     disabled,
     sortOrder,
   } = props;
+  const { t } = useTranslation();
+  const [loadingMore, setLoadingMore] = useState(false);
   // store hooks
-  const {
-    activity: { getActivityAndCommentsByIssueId },
-    comment: { getCommentById },
-  } = useIssueDetail();
+  const { activity, comment: commentStore } = useIssueDetail();
+  const { getActivityAndCommentsByIssueId } = activity;
+  const { getCommentById } = commentStore;
+  const hasMore = activity.history.hasMore(issueId) || commentStore.history.hasMore(issueId);
+  const hasError = activity.history.hasError(issueId) || commentStore.history.hasError(issueId);
+  const loadMore = async () => {
+    setLoadingMore(true);
+    try {
+      await Promise.allSettled([
+        activity.history.hasError(issueId) && !activity.history.hasOlderError(issueId)
+          ? activity.fetchActivities(workspaceSlug, projectId, issueId)
+          : activity.fetchOlderActivities(workspaceSlug, projectId, issueId),
+        commentStore.history.hasError(issueId) && !commentStore.history.hasOlderError(issueId)
+          ? commentStore.fetchComments(workspaceSlug, projectId, issueId)
+          : commentStore.fetchOlderComments(workspaceSlug, projectId, issueId),
+      ]);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
   // derived values
   const activityAndComments = getActivityAndCommentsByIssueId(issueId, sortOrder);
 
-  if (!activityAndComments) return <IssueActivityLoader />;
+  if (!activityAndComments && !hasError) return <IssueActivityLoader />;
 
-  if (activityAndComments.length <= 0) return null;
-
-  const filteredActivityAndComments = filterActivityOnSelectedFilters(activityAndComments, selectedFilters);
+  const filteredActivityAndComments = filterActivityOnSelectedFilters(activityAndComments ?? [], selectedFilters);
 
   return (
     <div>
+      {(hasMore || hasError) && (
+        <button
+          type="button"
+          disabled={loadingMore}
+          aria-busy={loadingMore}
+          onClick={() => void loadMore()}
+          className="my-2 rounded px-3 py-2 text-body-sm-medium text-secondary hover:bg-layer-2 disabled:opacity-50"
+        >
+          {t(hasError ? "common.retry" : "common.load_more")}
+        </button>
+      )}
       {filteredActivityAndComments.map((activityComment, index) => {
         const comment = getCommentById(activityComment.id);
         return activityComment.activity_type === "COMMENT" ? (
